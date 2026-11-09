@@ -4,6 +4,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,6 +15,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +43,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +64,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,6 +73,8 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.PI
+import kotlin.math.sin
 
 private val SpaceBlack = Color(0xFF070914)
 private val SpacePanel = Color(0xFF11182A)
@@ -68,7 +84,37 @@ private val NeonPink = Color(0xFFFF70C8)
 
 data class LauncherApp(val label: String, val packageName: String)
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), SensorEventListener {
+    private lateinit var sensorManager: SensorManager
+    private var accelerometer: Sensor? = null
+    private var deviceTiltX by mutableStateOf(0f)
+    private var deviceTiltY by mutableStateOf(0f)
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event?.sensor?.type != Sensor.TYPE_ACCELEROMETER) return
+        val nextX = (event.values[0] / 6f).coerceIn(-1f, 1f)
+        val nextY = (event.values[1] / 6f).coerceIn(-1f, 1f)
+        // Quantize updates to keep motion smooth without excessive recomposition.
+        deviceTiltX = (nextX * 10).toInt() / 10f
+        deviceTiltY = (nextY * 10).toInt() / 10f
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+
+    override fun onResume() {
+        super.onResume()
+        if (::sensorManager.isInitialized) {
+            accelerometer?.let {
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+            }
+        }
+    }
+
+    override fun onPause() {
+        if (::sensorManager.isInitialized) sensorManager.unregisterListener(this)
+        super.onPause()
+    }
+
     private fun loadApps(): List<LauncherApp> {
         val launchIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         return packageManager.queryIntentActivities(launchIntent, PackageManager.MATCH_ALL)
@@ -79,6 +125,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         val installedApps = loadApps()
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(
@@ -89,6 +137,8 @@ class MainActivity : ComponentActivity() {
             )) {
                 FusionHome(
                     apps = installedApps,
+                    tiltX = deviceTiltX,
+                    tiltY = deviceTiltY,
                     onLaunchApp = { packageName ->
                         packageManager.getLaunchIntentForPackage(packageName)?.let(::startActivity)
                     },
@@ -104,6 +154,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun FusionHome(
     apps: List<LauncherApp>,
+    tiltX: Float,
+    tiltY: Float,
     onLaunchApp: (String) -> Unit,
     onChooseHome: () -> Unit
 ) {
@@ -245,6 +297,8 @@ private fun FusionHome(
                                     index = index,
                                     iconSize = iconSize.dp,
                                     floatingMotion = floatingMotion,
+                                    tiltX = tiltX,
+                                    tiltY = tiltY,
                                     isFavorite = favorites.contains(app.packageName),
                                     onToggleFavorite = { toggleFavorite(app.packageName) },
                                     onClick = { onLaunchApp(app.packageName) }
@@ -509,8 +563,38 @@ private fun HomeInfoCard(
 }
 
 @Composable
-private fun FloatingAppIcon(app: LauncherApp, index: Int, iconSize: androidx.compose.ui.unit.Dp, floatingMotion: Boolean, isFavorite: Boolean, onToggleFavorite: () -> Unit, onClick: () -> Unit) {
+private fun FloatingAppIcon(
+    app: LauncherApp,
+    index: Int,
+    iconSize: androidx.compose.ui.unit.Dp,
+    floatingMotion: Boolean,
+    tiltX: Float,
+    tiltY: Float,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onClick: () -> Unit
+) {
     val context = LocalContext.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.90f else 1f,
+        animationSpec = tween(140),
+        label = "iconPressScale"
+    )
+    val floatTransition = rememberInfiniteTransition(label = "floatingIcon")
+    val bobAmount by floatTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 1900 + (index % 5) * 180,
+                easing = FastOutSlowInEasing
+            ),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "iconBob"
+    )
     val iconBitmap = remember(app.packageName) {
         runCatching {
             val drawable = context.packageManager.getApplicationIcon(app.packageName)
@@ -554,7 +638,21 @@ private fun FloatingAppIcon(app: LauncherApp, index: Int, iconSize: androidx.com
                     listOf(Color.White.copy(alpha = 0.8f), accent.copy(alpha = 0.55f),
                         Color.White.copy(alpha = 0.12f))
                 ), CircleShape)
-                .clickable(onClick = onClick),
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick
+                )
+                .graphicsLayer {
+                    val motion = if (floatingMotion) 1f else 0f
+                    rotationX = tiltY * 1.4f * motion
+                    rotationY = -tiltX * 1.4f * motion
+                    scaleX = pressScale
+                    scaleY = pressScale
+                    translationY = if (floatingMotion) sin(bobAmount * PI).toFloat() * 6f else 0f
+                    cameraDistance = 26f * density
+                    transformOrigin = TransformOrigin.Center
+                },
             contentAlignment = Alignment.Center
         ) {
             Text(
