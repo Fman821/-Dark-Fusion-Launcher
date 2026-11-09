@@ -169,6 +169,9 @@ private fun FusionHome(
     var favorites by remember {
         mutableStateOf(preferences.getStringSet("favorite_apps", emptySet())?.toSet() ?: emptySet())
     }
+    var hiddenApps by remember {
+        mutableStateOf(preferences.getStringSet("hidden_apps", emptySet())?.toSet() ?: emptySet())
+    }
     var selectedCategory by remember { mutableStateOf("All") }
     fun categoryFor(app: LauncherApp): String {
         val key = (app.label + " " + app.packageName).lowercase()
@@ -183,7 +186,7 @@ private fun FusionHome(
     }
     val categories = listOf("All", "Favorites", "Communication", "Social", "Media", "Games", "Tools", "Other")
     val filteredApps = apps.filter { app ->
-        app.label.contains(search, ignoreCase = true) &&
+        !hiddenApps.contains(app.packageName) && app.label.contains(search, ignoreCase = true) &&
             when (selectedCategory) {
                 "All" -> true
                 "Favorites" -> favorites.contains(app.packageName)
@@ -195,6 +198,12 @@ private fun FusionHome(
         if (!updated.add(packageName)) updated.remove(packageName)
         favorites = updated
         preferences.edit().putStringSet("favorite_apps", updated).apply()
+    }
+    fun toggleHidden(packageName: String) {
+        val updated = hiddenApps.toMutableSet()
+        if (!updated.add(packageName)) updated.remove(packageName)
+        hiddenApps = updated
+        preferences.edit().putStringSet("hidden_apps", updated).apply()
     }
 
     Surface(Modifier.fillMaxSize(), color = SpaceBlack) {
@@ -238,7 +247,7 @@ private fun FusionHome(
                             onLaunchApp = onLaunchApp,
                             onChooseHome = onChooseHome,
                             onOpenApps = { selectedTab = "Apps" },
-                            favoriteApps = apps.filter { favorites.contains(it.packageName) },
+                            favoriteApps = apps.filter { favorites.contains(it.packageName) && !hiddenApps.contains(it.packageName) },
                             onOpenSettings = {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) }
                             },
@@ -387,11 +396,42 @@ private fun FusionHome(
                                 }
                             }
 
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonPink.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("HIDDEN APPS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Tap an app to hide it from the App Drawer. Tap again to show it.", color = Color.LightGray, fontSize = 11.sp)
+                                    apps.forEach { app ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                                .clickable { toggleHidden(app.packageName) }
+                                                .padding(vertical = 7.dp, horizontal = 5.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(app.label, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                            Text(
+                                                if (hiddenApps.contains(app.packageName)) "HIDDEN" else "VISIBLE",
+                                                color = if (hiddenApps.contains(app.packageName)) NeonPink else NeonCyan,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
                             Button(
                                 onClick = {
                                     iconSize = 76f
                                     gridColumns = 3
                                     floatingMotion = true
+                                    hiddenApps = emptySet()
+                                    favorites = emptySet()
                                     preferences.edit().clear().apply()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
