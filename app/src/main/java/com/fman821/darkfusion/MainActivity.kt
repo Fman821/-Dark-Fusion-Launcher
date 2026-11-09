@@ -33,6 +33,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -108,6 +109,10 @@ private fun FusionHome(
     var search by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf("Home") }
     val context = LocalContext.current
+    val preferences = remember { context.getSharedPreferences("dark_fusion_settings", android.content.Context.MODE_PRIVATE) }
+    var iconSize by remember { mutableStateOf(preferences.getInt("icon_size", 76).toFloat()) }
+    var gridColumns by remember { mutableStateOf(preferences.getInt("grid_columns", 3)) }
+    var floatingMotion by remember { mutableStateOf(preferences.getBoolean("floating_motion", true)) }
     val filteredApps = apps.filter { it.label.contains(search, ignoreCase = true) }
 
     Surface(Modifier.fillMaxSize(), color = SpaceBlack) {
@@ -177,7 +182,7 @@ private fun FusionHome(
                         )
                         Spacer(Modifier.height(16.dp))
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(3),
+                            columns = GridCells.Fixed(gridColumns),
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(18.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -186,33 +191,108 @@ private fun FusionHome(
                                 FloatingAppIcon(
                                     app = app,
                                     index = index,
+                                    iconSize = iconSize.dp,
+                                    floatingMotion = floatingMotion,
                                     onClick = { onLaunchApp(app.packageName) }
                                 )
                             }
                         }
                     }
                     else -> {
-                        Text("SHAPE YOUR UNIVERSE", color = NeonCyan, fontSize = 11.sp,
-                            letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(14.dp))
-                        listOf(
-                            "✦  Floating icon layout",
-                            "◈  Icon size & spacing",
-                            "◉  Space colors",
-                            "✧  Motion effects",
-                            "⌁  Background depth"
-                        ).forEach { option ->
+                        Column(
+                            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text("SHAPE YOUR UNIVERSE", color = NeonCyan, fontSize = 11.sp,
+                                letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
+                            Text("Personalize the floating app drawer. Your choices are saved on this phone.",
+                                color = Color.LightGray, fontSize = 12.sp)
+
                             Surface(
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                                color = SpacePanel, shape = RoundedCornerShape(18.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x334F6B9C))
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonViolet.copy(alpha = 0.4f))
                             ) {
-                                Text(option, color = Color.White, modifier = Modifier.padding(18.dp),
-                                    fontSize = 14.sp)
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("ICON SIZE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("${iconSize.toInt()} dp", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(
+                                        value = iconSize,
+                                        onValueChange = {
+                                            iconSize = it
+                                            preferences.edit().putInt("icon_size", it.toInt()).apply()
+                                        },
+                                        valueRange = 64f..96f
+                                    )
+                                    Text("Adjust the size of floating app icons.", color = Color.LightGray, fontSize = 11.sp)
+                                }
                             }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text("APP GRID", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Choose how many icons appear in each row.", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        (3..5).forEach { count ->
+                                            Button(
+                                                onClick = {
+                                                    gridColumns = count
+                                                    preferences.edit().putInt("grid_columns", count).apply()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (gridColumns == count) NeonViolet else Color(0xFF273149)
+                                                ),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) { Text("${count} columns", fontSize = 10.sp) }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonPink.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        floatingMotion = !floatingMotion
+                                        preferences.edit().putBoolean("floating_motion", floatingMotion).apply()
+                                    }.padding(18.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("FLOATING LAYOUT", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("Enable the tilted, raised icon arrangement.", color = Color.LightGray, fontSize = 11.sp)
+                                    }
+                                    Text(if (floatingMotion) "ON" else "OFF",
+                                        color = if (floatingMotion) NeonCyan else Color.LightGray,
+                                        fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            Button(
+                                onClick = {
+                                    iconSize = 76f
+                                    gridColumns = 3
+                                    floatingMotion = true
+                                    preferences.edit().clear().apply()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF273149)),
+                                shape = RoundedCornerShape(14.dp)
+                            ) { Text("Restore default settings") }
+                            Text("Settings are stored locally and remain after closing the app.",
+                                color = Color.LightGray, fontSize = 10.sp)
                         }
-                        Text("More controls will become interactive as we build each feature.",
-                            color = Color.LightGray, fontSize = 12.sp)
                     }
                 }
             }
@@ -374,7 +454,7 @@ private fun HomeInfoCard(
 }
 
 @Composable
-private fun FloatingAppIcon(app: LauncherApp, index: Int, onClick: () -> Unit) {
+private fun FloatingAppIcon(app: LauncherApp, index: Int, iconSize: androidx.compose.ui.unit.Dp, floatingMotion: Boolean, onClick: () -> Unit) {
     val context = LocalContext.current
     val iconBitmap = remember(app.packageName) {
         runCatching {
@@ -391,13 +471,13 @@ private fun FloatingAppIcon(app: LauncherApp, index: Int, onClick: () -> Unit) {
         1 -> NeonCyan
         else -> NeonPink
     }
-    val tilt = when (index % 4) {
+    val tilt = if (floatingMotion) when (index % 4) {
         0 -> -5f
         1 -> 4f
         2 -> 2f
         else -> -3f
-    }
-    val lift = if (index % 2 == 0) 0.dp else 9.dp
+    } else 0f
+    val lift = if (floatingMotion && index % 2 != 0) 9.dp else 0.dp
 
     Column(
         modifier = Modifier
@@ -408,7 +488,7 @@ private fun FloatingAppIcon(app: LauncherApp, index: Int, onClick: () -> Unit) {
     ) {
         Box(
             modifier = Modifier
-                .size(76.dp)
+                .size(iconSize)
                 .shadow(18.dp, CircleShape, ambientColor = accent.copy(alpha = 0.42f),
                     spotColor = accent.copy(alpha = 0.55f))
                 .clip(CircleShape)
@@ -423,13 +503,13 @@ private fun FloatingAppIcon(app: LauncherApp, index: Int, onClick: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Box(
-                Modifier.size(58.dp).clip(CircleShape)
+                Modifier.size(iconSize * 0.76f).clip(CircleShape)
                     .background(Color(0xAA080D1B)),
                 contentAlignment = Alignment.Center
             ) {
                 if (iconBitmap != null) {
                     Image(bitmap = iconBitmap, contentDescription = app.label,
-                        modifier = Modifier.size(39.dp))
+                        modifier = Modifier.size(iconSize * 0.51f))
                 } else {
                     Text(app.label.take(1).uppercase(), color = Color.White,
                         fontSize = 24.sp, fontWeight = FontWeight.Bold)
