@@ -2,10 +2,14 @@ package com.fman821.darkfusion
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,16 +18,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -36,54 +40,48 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val FusionBackground = Color(0xFF080A12)
-private val FusionPanel = Color(0xFF151927)
-private val FusionPurple = Color(0xFF9B7BFF)
-private val FusionCyan = Color(0xFF52D6D0)
+private val SpaceBlack = Color(0xFF070914)
+private val SpacePanel = Color(0xFF11182A)
+private val NeonViolet = Color(0xFF9D75FF)
+private val NeonCyan = Color(0xFF56E5E0)
+private val NeonPink = Color(0xFFFF70C8)
 
-data class LauncherApp(
-    val label: String,
-    val packageName: String
-)
+data class LauncherApp(val label: String, val packageName: String)
 
 class MainActivity : ComponentActivity() {
-
     private fun loadApps(): List<LauncherApp> {
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        return packageManager.queryIntentActivities(intent, PackageManager.MATCH_ALL)
-            .map {
-                LauncherApp(
-                    label = it.loadLabel(packageManager).toString(),
-                    packageName = it.activityInfo.packageName
-                )
-            }
+        val launchIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        return packageManager.queryIntentActivities(launchIntent, PackageManager.MATCH_ALL)
+            .map { LauncherApp(it.loadLabel(packageManager).toString(), it.activityInfo.packageName) }
             .distinctBy { it.packageName }
             .sortedBy { it.label.lowercase() }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val apps = loadApps()
-
+        val installedApps = loadApps()
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(
-                background = FusionBackground,
-                surface = FusionPanel,
-                primary = FusionPurple,
-                secondary = FusionCyan
+                background = SpaceBlack,
+                surface = SpacePanel,
+                primary = NeonViolet,
+                secondary = NeonCyan
             )) {
                 FusionHome(
-                    apps = apps,
+                    apps = installedApps,
                     onLaunchApp = { packageName ->
-                        packageManager.getLaunchIntentForPackage(packageName)?.let {
-                            startActivity(it)
-                        }
+                        packageManager.getLaunchIntentForPackage(packageName)?.let(::startActivity)
                     },
                     onChooseHome = {
                         startActivity(Intent(android.provider.Settings.ACTION_HOME_SETTINGS))
@@ -102,147 +100,187 @@ private fun FusionHome(
 ) {
     var search by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf("Home") }
+    val filteredApps = apps.filter { it.label.contains(search, ignoreCase = true) }
 
-    val filteredApps = apps.filter {
-        it.label.contains(search, ignoreCase = true)
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = FusionBackground
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFF17152B), FusionBackground, Color(0xFF080A12))
-                    )
+    Surface(Modifier.fillMaxSize(), color = SpaceBlack) {
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF17132D), Color(0xFF0B1020), SpaceBlack)
                 )
-                .padding(horizontal = 20.dp, vertical = 28.dp)
+            )
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("DARK FUSION", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Black)
-                    Text("YOUR SPACE. YOUR STYLE.", color = FusionCyan, fontSize = 10.sp, letterSpacing = 2.sp)
+            Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 26.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text("DARK FUSION", color = Color.White, fontSize = 22.sp,
+                            fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
+                        Text("A UNIVERSE OF YOUR OWN", color = NeonCyan, fontSize = 9.sp,
+                            letterSpacing = 2.sp)
+                    }
+                    Text("✧", color = NeonViolet, fontSize = 34.sp)
                 }
-                Text("✦", color = FusionPurple, fontSize = 34.sp)
-            }
 
-            Spacer(Modifier.size(28.dp))
-
-            Text("Make it yours.", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("A new home for your Android.", color = Color.LightGray, fontSize = 14.sp)
-
-            Spacer(Modifier.size(22.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Home", "Apps", "Customize").forEach { tab ->
-                    Button(
-                        onClick = { selectedTab = tab },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedTab == tab) FusionPurple else FusionPanel
-                        ),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text(tab, color = Color.White, fontSize = 12.sp)
+                Spacer(Modifier.height(22.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Home", "Apps", "Customize").forEach { tab ->
+                        Button(
+                            onClick = { selectedTab = tab },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selectedTab == tab) NeonViolet else SpacePanel
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text(tab, color = Color.White, fontSize = 11.sp) }
                     }
                 }
-            }
+                Spacer(Modifier.height(18.dp))
 
-            Spacer(Modifier.size(18.dp))
-
-            when (selectedTab) {
-                "Home" -> {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = FusionPanel),
-                        shape = RoundedCornerShape(24.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(Modifier.padding(20.dp)) {
-                            Text("MONDAY • YOUR DAY", color = FusionCyan, fontSize = 11.sp, letterSpacing = 1.sp)
-                            Text("Welcome back", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                            Text("Explore your apps and make this space yours.", color = Color.LightGray, fontSize = 13.sp)
-                            Spacer(Modifier.size(16.dp))
-                            Button(onClick = onChooseHome) {
-                                Text("Set as default launcher")
-                            }
+                when (selectedTab) {
+                    "Home" -> {
+                        Text("ENTER YOUR SPACE", color = NeonCyan, fontSize = 10.sp,
+                            letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Your apps.\nYour universe.", color = Color.White,
+                            fontSize = 34.sp, lineHeight = 39.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(12.dp))
+                        Text("A new dimension for your Android experience.",
+                            color = Color.LightGray, fontSize = 13.sp)
+                        Spacer(Modifier.height(24.dp))
+                        Button(onClick = onChooseHome, colors = ButtonDefaults.buttonColors(
+                            containerColor = NeonViolet), shape = RoundedCornerShape(16.dp)) {
+                            Text("Set as default launcher")
                         }
+                        Spacer(Modifier.height(22.dp))
+                        Text("FLOATING APP SPACE", color = Color.White,
+                            fontSize = 12.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+                        Text("Open Apps to explore your floating icon field.",
+                            color = Color.LightGray, fontSize = 12.sp)
                     }
-                    Spacer(Modifier.size(18.dp))
-                    Text("QUICK ACCESS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Spacer(Modifier.size(10.dp))
-                    Text("Open the Apps tab to find and launch apps installed on your phone.", color = Color.LightGray, fontSize = 13.sp)
-                }
-
-                "Apps" -> {
-                    OutlinedTextField(
-                        value = search,
-                        onValueChange = { search = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("Search apps") },
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    Spacer(Modifier.size(12.dp))
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(filteredApps, key = { it.packageName }) { app ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onLaunchApp(app.packageName) },
-                                colors = CardDefaults.cardColors(containerColor = FusionPanel),
-                                shape = RoundedCornerShape(18.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 18.dp, horizontal = 6.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        app.label,
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        maxLines = 2
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                else -> {
-                    Text("CUSTOMIZATION", color = FusionCyan, fontSize = 12.sp, letterSpacing = 2.sp)
-                    Spacer(Modifier.size(12.dp))
-                    listOf(
-                        "🎨  Themes & accent colors",
-                        "🖼️  Wallpapers",
-                        "🔤  Fonts & typography",
-                        "▦  Icon layout",
-                        "✨  Motion & animations"
-                    ).forEach { item ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 10.dp),
-                            colors = CardDefaults.cardColors(containerColor = FusionPanel),
-                            shape = RoundedCornerShape(16.dp)
+                    "Apps" -> {
+                        Text("YOUR UNIVERSE", color = Color.White, fontSize = 25.sp,
+                            fontWeight = FontWeight.Bold)
+                        Text("${filteredApps.size} applications • FLOATING MODE",
+                            color = NeonCyan, fontSize = 10.sp, letterSpacing = 1.2.sp)
+                        Spacer(Modifier.height(14.dp))
+                        OutlinedTextField(
+                            value = search,
+                            onValueChange = { search = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            label = { Text("Search your universe") },
+                            shape = RoundedCornerShape(18.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(18.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(item, color = Color.White, modifier = Modifier.padding(18.dp), fontSize = 14.sp)
+                            itemsIndexed(filteredApps, key = { _, app -> app.packageName }) { index, app ->
+                                FloatingAppIcon(
+                                    app = app,
+                                    index = index,
+                                    onClick = { onLaunchApp(app.packageName) }
+                                )
+                            }
                         }
                     }
-                    Text("More customization options are coming in the next versions.", color = Color.LightGray, fontSize = 12.sp)
+                    else -> {
+                        Text("SHAPE YOUR UNIVERSE", color = NeonCyan, fontSize = 11.sp,
+                            letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(14.dp))
+                        listOf(
+                            "✦  Floating icon layout",
+                            "◈  Icon size & spacing",
+                            "◉  Space colors",
+                            "✧  Motion effects",
+                            "⌁  Background depth"
+                        ).forEach { option ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                                color = SpacePanel, shape = RoundedCornerShape(18.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x334F6B9C))
+                            ) {
+                                Text(option, color = Color.White, modifier = Modifier.padding(18.dp),
+                                    fontSize = 14.sp)
+                            }
+                        }
+                        Text("More controls will become interactive as we build each feature.",
+                            color = Color.LightGray, fontSize = 12.sp)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FloatingAppIcon(app: LauncherApp, index: Int, onClick: () -> Unit) {
+    val context = LocalContext.current
+    val iconBitmap = remember(app.packageName) {
+        runCatching {
+            val drawable = context.packageManager.getApplicationIcon(app.packageName)
+            val bitmap = Bitmap.createBitmap(144, 144, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            bitmap.asImageBitmap()
+        }.getOrNull()
+    }
+    val accent = when (index % 3) {
+        0 -> NeonViolet
+        1 -> NeonCyan
+        else -> NeonPink
+    }
+    val tilt = when (index % 4) {
+        0 -> -5f
+        1 -> 4f
+        2 -> 2f
+        else -> -3f
+    }
+    val lift = if (index % 2 == 0) 0.dp else 9.dp
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = lift, bottom = 4.dp)
+            .graphicsLayer { rotationZ = tilt },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(76.dp)
+                .shadow(18.dp, CircleShape, ambientColor = accent.copy(alpha = 0.42f),
+                    spotColor = accent.copy(alpha = 0.55f))
+                .clip(CircleShape)
+                .background(Brush.linearGradient(
+                    listOf(accent.copy(alpha = 0.38f), Color(0xFF17243A), Color(0xFF0A1020))
+                ))
+                .border(1.dp, Brush.linearGradient(
+                    listOf(Color.White.copy(alpha = 0.8f), accent.copy(alpha = 0.55f),
+                        Color.White.copy(alpha = 0.12f))
+                ), CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                Modifier.size(58.dp).clip(CircleShape)
+                    .background(Color(0xAA080D1B)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (iconBitmap != null) {
+                    Image(bitmap = iconBitmap, contentDescription = app.label,
+                        modifier = Modifier.size(39.dp))
+                } else {
+                    Text(app.label.take(1).uppercase(), color = Color.White,
+                        fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(app.label, color = Color(0xFFECEBFA), fontSize = 11.sp,
+            maxLines = 1, fontWeight = FontWeight.Medium)
     }
 }
