@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -34,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +53,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val SpaceBlack = Color(0xFF070914)
 private val SpacePanel = Color(0xFF11182A)
@@ -100,6 +107,7 @@ private fun FusionHome(
 ) {
     var search by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf("Home") }
+    val context = LocalContext.current
     val filteredApps = apps.filter { it.label.contains(search, ignoreCase = true) }
 
     Surface(Modifier.fillMaxSize(), color = SpaceBlack) {
@@ -138,24 +146,20 @@ private fun FusionHome(
 
                 when (selectedTab) {
                     "Home" -> {
-                        Text("ENTER YOUR SPACE", color = NeonCyan, fontSize = 10.sp,
-                            letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Your apps.\nYour universe.", color = Color.White,
-                            fontSize = 34.sp, lineHeight = 39.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(12.dp))
-                        Text("A new dimension for your Android experience.",
-                            color = Color.LightGray, fontSize = 13.sp)
-                        Spacer(Modifier.height(24.dp))
-                        Button(onClick = onChooseHome, colors = ButtonDefaults.buttonColors(
-                            containerColor = NeonViolet), shape = RoundedCornerShape(16.dp)) {
-                            Text("Set as default launcher")
-                        }
-                        Spacer(Modifier.height(22.dp))
-                        Text("FLOATING APP SPACE", color = Color.White,
-                            fontSize = 12.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
-                        Text("Open Apps to explore your floating icon field.",
-                            color = Color.LightGray, fontSize = 12.sp)
+                        HomeDashboard(
+                            apps = apps,
+                            onLaunchApp = onLaunchApp,
+                            onChooseHome = onChooseHome,
+                            onOpenApps = { selectedTab = "Apps" },
+                            onOpenSettings = {
+                                runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) }
+                            },
+                            onOpenCalendar = {
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALENDAR))
+                                }
+                            }
+                        )
                     }
                     "Apps" -> {
                         Text("YOUR UNIVERSE", color = Color.White, fontSize = 25.sp,
@@ -212,6 +216,159 @@ private fun FusionHome(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun HomeDashboard(
+    apps: List<LauncherApp>,
+    onLaunchApp: (String) -> Unit,
+    onChooseHome: () -> Unit,
+    onOpenApps: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenCalendar: () -> Unit
+) {
+    var clock by remember { mutableStateOf(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())) }
+    var date by remember { mutableStateOf(SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date())) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = Date()
+            clock = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+            date = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(now)
+            delay(1000)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text("YOUR PERSONAL UNIVERSE", color = NeonCyan, fontSize = 10.sp,
+            letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xFF17152D),
+            shape = RoundedCornerShape(30.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x669D75FF))
+        ) {
+            Box(
+                Modifier.background(
+                    Brush.linearGradient(listOf(Color(0xFF34245C), Color(0xFF132B43), Color(0xFF11182A)))
+                ).padding(22.dp)
+            ) {
+                Column {
+                    Text("FUSION TIME", color = NeonCyan, fontSize = 10.sp, letterSpacing = 2.sp)
+                    Text(clock, color = Color.White, fontSize = 60.sp, fontWeight = FontWeight.Black,
+                        letterSpacing = (-2).sp)
+                    Text(date, color = Color(0xFFD7D3EE), fontSize = 13.sp)
+                    Spacer(Modifier.height(18.dp))
+                    Text("A universe made yours.", color = Color.White.copy(alpha = 0.88f), fontSize = 13.sp)
+                }
+                Text("✧", modifier = Modifier.align(Alignment.TopEnd), color = NeonPink, fontSize = 34.sp)
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HomeInfoCard(Modifier.weight(1f), "☁", "WEATHER SPACE", "Live weather widget",
+                NeonCyan, onOpenSettings)
+            HomeInfoCard(Modifier.weight(1f), "▦", "CALENDAR", "Open your calendar",
+                NeonPink, onOpenCalendar)
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Text("FAVORITE ORBIT", color = Color.White, fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text("Your quick-launch apps", color = Color.LightGray, fontSize = 11.sp)
+            }
+            Text("SEE ALL  ›", color = NeonCyan, fontSize = 10.sp,
+                modifier = Modifier.clickable(onClick = onOpenApps))
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            apps.take(4).forEach { app ->
+                Surface(
+                    modifier = Modifier.weight(1f).clickable { onLaunchApp(app.packageName) },
+                    color = SpacePanel,
+                    shape = RoundedCornerShape(18.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x4456E5E0))
+                ) {
+                    Column(Modifier.padding(vertical = 13.dp, horizontal = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(app.label.take(1).uppercase(), color = NeonCyan,
+                            fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1)
+                    }
+                }
+            }
+            if (apps.isEmpty()) {
+                Text("Your apps will appear here.", color = Color.LightGray, fontSize = 12.sp)
+            }
+        }
+
+        Text("QUICK ACCESS", color = Color.White, fontSize = 13.sp,
+            fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HomeInfoCard(Modifier.weight(1f), "⌕", "APP SEARCH", "Find an app",
+                NeonViolet, onOpenApps)
+            HomeInfoCard(Modifier.weight(1f), "⚙", "SYSTEM", "Phone settings",
+                NeonCyan, onOpenSettings)
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = SpacePanel,
+            shape = RoundedCornerShape(20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x3356E5E0))
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Text("WEATHER WIDGET", color = NeonCyan, fontSize = 10.sp,
+                    letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text("Your weather panel is ready for live weather connection.",
+                    color = Color.White, fontSize = 13.sp)
+                Text("No location is accessed unless you choose to enable it.",
+                    color = Color.LightGray, fontSize = 10.sp)
+            }
+        }
+
+        Button(
+            onClick = onChooseHome,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = NeonViolet),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text("Set Dark Fusion as default launcher")
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun HomeInfoCard(
+    modifier: Modifier = Modifier,
+    symbol: String,
+    title: String,
+    detail: String,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        color = SpacePanel,
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.35f))
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(symbol, color = accent, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = Color.White, fontSize = 10.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+            Text(detail, color = Color.LightGray, fontSize = 10.sp)
         }
     }
 }
