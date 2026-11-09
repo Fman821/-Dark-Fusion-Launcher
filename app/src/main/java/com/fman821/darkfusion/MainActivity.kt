@@ -272,8 +272,8 @@ private fun HomeDashboard(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HomeInfoCard(Modifier.weight(1f), "☁", "WEATHER SPACE", "Live weather widget",
-                NeonCyan, onOpenSettings)
+            HomeInfoCard(Modifier.weight(1f), "☁", "WEATHER SPACE", "Live weather coming soon",
+                NeonCyan, null)
             HomeInfoCard(Modifier.weight(1f), "▦", "CALENDAR", "Open your calendar",
                 NeonPink, onOpenCalendar)
         }
@@ -356,10 +356,10 @@ private fun HomeInfoCard(
     title: String,
     detail: String,
     accent: Color,
-    onClick: () -> Unit
+    onClick: (() -> Unit)?
 ) {
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = if (onClick == null) modifier else modifier.clickable { onClick() },
         color = SpacePanel,
         shape = RoundedCornerShape(20.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.35f))
