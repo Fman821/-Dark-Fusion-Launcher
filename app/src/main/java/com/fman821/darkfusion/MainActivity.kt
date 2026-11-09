@@ -11,6 +11,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -113,7 +115,36 @@ private fun FusionHome(
     var iconSize by remember { mutableStateOf(preferences.getInt("icon_size", 76).toFloat()) }
     var gridColumns by remember { mutableStateOf(preferences.getInt("grid_columns", 3)) }
     var floatingMotion by remember { mutableStateOf(preferences.getBoolean("floating_motion", true)) }
-    val filteredApps = apps.filter { it.label.contains(search, ignoreCase = true) }
+    var favorites by remember {
+        mutableStateOf(preferences.getStringSet("favorite_apps", emptySet())?.toSet() ?: emptySet())
+    }
+    var selectedCategory by remember { mutableStateOf("All") }
+    fun categoryFor(app: LauncherApp): String {
+        val key = (app.label + " " + app.packageName).lowercase()
+        return when {
+            listOf("phone", "dialer", "contacts", "message", "sms", "whatsapp", "telegram").any { key.contains(it) } -> "Communication"
+            listOf("camera", "gallery", "photo", "video", "music", "youtube", "spotify").any { key.contains(it) } -> "Media"
+            listOf("game", "pubg", "freefire", "roblox", "minecraft").any { key.contains(it) } -> "Games"
+            listOf("setting", "file", "calculator", "clock", "calendar", "browser").any { key.contains(it) } -> "Tools"
+            listOf("facebook", "instagram", "tiktok", "snapchat", "x.com").any { key.contains(it) } -> "Social"
+            else -> "Other"
+        }
+    }
+    val categories = listOf("All", "Favorites", "Communication", "Social", "Media", "Games", "Tools", "Other")
+    val filteredApps = apps.filter { app ->
+        app.label.contains(search, ignoreCase = true) &&
+            when (selectedCategory) {
+                "All" -> true
+                "Favorites" -> favorites.contains(app.packageName)
+                else -> categoryFor(app) == selectedCategory
+            }
+    }
+    fun toggleFavorite(packageName: String) {
+        val updated = favorites.toMutableSet()
+        if (!updated.add(packageName)) updated.remove(packageName)
+        favorites = updated
+        preferences.edit().putStringSet("favorite_apps", updated).apply()
+    }
 
     Surface(Modifier.fillMaxSize(), color = SpaceBlack) {
         Box(
@@ -156,6 +187,7 @@ private fun FusionHome(
                             onLaunchApp = onLaunchApp,
                             onChooseHome = onChooseHome,
                             onOpenApps = { selectedTab = "Apps" },
+                            favoriteApps = apps.filter { favorites.contains(it.packageName) },
                             onOpenSettings = {
                                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) }
                             },
@@ -180,7 +212,28 @@ private fun FusionHome(
                             label = { Text("Search your universe") },
                             shape = RoundedCornerShape(18.dp)
                         )
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            categories.forEach { category ->
+                                Button(
+                                    onClick = { selectedCategory = category },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (selectedCategory == category) NeonViolet else SpacePanel
+                                    ),
+                                    shape = RoundedCornerShape(20.dp)
+                                ) {
+                                    Text(category, color = Color.White, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                        Text(
+                            if (selectedCategory == "Favorites") "SAVED FAVORITES" else "FLOATING APP FIELD",
+                            color = NeonPink, fontSize = 10.sp, letterSpacing = 1.2.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(gridColumns),
                             modifier = Modifier.fillMaxSize(),
@@ -193,6 +246,8 @@ private fun FusionHome(
                                     index = index,
                                     iconSize = iconSize.dp,
                                     floatingMotion = floatingMotion,
+                                    isFavorite = favorites.contains(app.packageName),
+                                    onToggleFavorite = { toggleFavorite(app.packageName) },
                                     onClick = { onLaunchApp(app.packageName) }
                                 )
                             }
@@ -304,6 +359,7 @@ private fun FusionHome(
 private fun HomeDashboard(
     apps: List<LauncherApp>,
     onLaunchApp: (String) -> Unit,
+    favoriteApps: List<LauncherApp>,
     onChooseHome: () -> Unit,
     onOpenApps: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -371,7 +427,7 @@ private fun HomeDashboard(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            apps.take(4).forEach { app ->
+            (if (favoriteApps.isNotEmpty()) favoriteApps else apps).take(4).forEach { app ->
                 Surface(
                     modifier = Modifier.weight(1f).clickable { onLaunchApp(app.packageName) },
                     color = SpacePanel,
@@ -454,7 +510,7 @@ private fun HomeInfoCard(
 }
 
 @Composable
-private fun FloatingAppIcon(app: LauncherApp, index: Int, iconSize: androidx.compose.ui.unit.Dp, floatingMotion: Boolean, onClick: () -> Unit) {
+private fun FloatingAppIcon(app: LauncherApp, index: Int, iconSize: androidx.compose.ui.unit.Dp, floatingMotion: Boolean, isFavorite: Boolean, onToggleFavorite: () -> Unit, onClick: () -> Unit) {
     val context = LocalContext.current
     val iconBitmap = remember(app.packageName) {
         runCatching {
@@ -502,6 +558,14 @@ private fun FloatingAppIcon(app: LauncherApp, index: Int, iconSize: androidx.com
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
+            Text(
+                if (isFavorite) "★" else "☆",
+                modifier = Modifier.align(Alignment.TopEnd).padding(5.dp)
+                    .clip(CircleShape).background(Color(0xDD080D1B))
+                    .clickable(onClick = onToggleFavorite).padding(horizontal = 6.dp, vertical = 2.dp),
+                color = if (isFavorite) NeonPink else Color.White,
+                fontSize = 14.sp
+            )
             Box(
                 Modifier.size(iconSize * 0.76f).clip(CircleShape)
                     .background(Color(0xAA080D1B)),
