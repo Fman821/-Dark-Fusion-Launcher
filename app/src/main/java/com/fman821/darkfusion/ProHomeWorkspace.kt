@@ -73,8 +73,8 @@ fun ProHomeWorkspace(
     onAddWidget: () -> Unit,
     onRemoveWidget: (Int) -> Unit,
     onDoubleTapHome: () -> Unit,
-    onSwipeUpHome: () -> Unit,
-    onSwipeDownHome: () -> Unit
+    onSwipeUpHome: () -> Unit = {},
+    onSwipeDownHome: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val preferences = remember {
