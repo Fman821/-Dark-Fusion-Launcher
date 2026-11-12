@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -67,21 +67,9 @@ fun WidgetShelf(
                                 modifier = Modifier.padding(bottom = 2.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().height(150.dp)
-                                ) {
-                                    AndroidView(
-                                        factory = { context -> host.createView(context, id, info) },
-                                        modifier = Modifier.fillMaxWidth().height(150.dp)
-                                    )
-                                }
-                                Text(
-                                    "REMOVE",
-                                    modifier = Modifier.align(Alignment.End)
-                                        .padding(horizontal = 8.dp)
-                                        .then(Modifier),
-                                    color = Color(0xFFFF70C8),
-                                    fontSize = 9.sp
+                                AndroidView(
+                                    factory = { context -> host.createView(context, id, info) },
+                                    modifier = Modifier.width(280.dp).height(150.dp)
                                 )
                                 Button(
                                     onClick = { onRemoveWidget(id) },
