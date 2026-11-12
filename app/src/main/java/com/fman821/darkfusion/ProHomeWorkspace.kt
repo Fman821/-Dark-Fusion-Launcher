@@ -59,7 +59,10 @@ fun ProHomeWorkspace(
     onChooseHome: () -> Unit,
     onOpenApps: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenCalendar: () -> Unit
+    onOpenCalendar: () -> Unit,
+    dockCount: Int,
+    dockVisible: Boolean,
+    dockOpacity: Float
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -89,7 +92,7 @@ fun ProHomeWorkspace(
     val pagerState = rememberPagerState(pageCount = { pageCount })
     val dockApps = (favoriteApps + apps.filterNot { app ->
         favoriteApps.any { it.packageName == app.packageName }
-    }).take(4)
+    }).take(dockCount.coerceIn(3, 6))
     var clock by remember { mutableStateOf(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -202,9 +205,9 @@ fun ProHomeWorkspace(
             }
         }
 
-        Surface(
+        if (dockVisible) Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color(0xEE11182A),
+            color = Color(0xFF11182A).copy(alpha = dockOpacity.coerceIn(0.25f, 1f)),
             shape = RoundedCornerShape(22.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, WorkspaceCyan.copy(alpha = 0.38f))
         ) {
