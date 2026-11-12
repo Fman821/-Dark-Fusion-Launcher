@@ -192,6 +192,9 @@ private fun FusionHome(
     var dockVisible by remember { mutableStateOf(preferences.getBoolean("dock_visible", true)) }
     var dockOpacity by remember { mutableStateOf(preferences.getFloat("dock_opacity", 0.92f)) }
     var doubleTapAction by remember { mutableStateOf(preferences.getString("gesture_double_tap", "Apps") ?: "Apps") }
+    var drawerIconShape by remember { mutableStateOf(preferences.getString("drawer_icon_shape", "Circle") ?: "Circle") }
+    var drawerBackground by remember { mutableStateOf(preferences.getString("drawer_background", "Cosmic") ?: "Cosmic") }
+    var drawerAnimation by remember { mutableStateOf(preferences.getString("drawer_animation", "Gentle") ?: "Gentle") }
     var homeWidgetIds by remember {
         mutableStateOf(preferences.getString("home_widget_ids", "").orEmpty()
             .split(",").mapNotNull { it.toIntOrNull() })
@@ -287,13 +290,15 @@ private fun FusionHome(
     }
 
     Surface(Modifier.fillMaxSize(), color = SpaceBlack) {
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF17132D), Color(0xFF0B1020), SpaceBlack)
-                )
-            )
-        ) {
+        val screenBackground = when (selectedTab) {
+            "Apps" -> when (drawerBackground) {
+                "Midnight" -> Brush.verticalGradient(listOf(Color(0xFF101827), Color(0xFF070B13), SpaceBlack))
+                "Aurora" -> Brush.linearGradient(listOf(Color(0xFF123B45), Color(0xFF17132D), SpaceBlack))
+                else -> Brush.verticalGradient(listOf(Color(0xFF17132D), Color(0xFF0B1020), SpaceBlack))
+            }
+            else -> Brush.verticalGradient(listOf(Color(0xFF17132D), Color(0xFF0B1020), SpaceBlack))
+        }
+        Box(Modifier.fillMaxSize().background(screenBackground)) {
             Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 26.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
@@ -403,6 +408,8 @@ private fun FusionHome(
                                     index = index,
                                     iconSize = iconSize.dp,
                                     floatingMotion = floatingMotion,
+                                    iconShape = drawerIconShape,
+                                    animationStyle = drawerAnimation,
                                     tiltX = tiltX,
                                     tiltY = tiltY,
                                     isFavorite = favorites.contains(app.packageName),
@@ -466,6 +473,52 @@ private fun FusionHome(
                                             ) { Text("${count} columns", fontSize = 10.sp) }
                                         }
                                     }
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonPink.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text("APP DRAWER APPEARANCE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Personalize the floating universe.", color = Color.LightGray, fontSize = 11.sp)
+                                    Text("ICON SHAPE", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("Circle", "Rounded", "Square").forEach { shape ->
+                                            Button(onClick = {
+                                                drawerIconShape = shape
+                                                preferences.edit().putString("drawer_icon_shape", shape).apply()
+                                            }, colors = ButtonDefaults.buttonColors(containerColor = if (drawerIconShape == shape) NeonViolet else Color(0xFF273149)), shape = RoundedCornerShape(12.dp)) {
+                                                Text(shape, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                    Text("BACKGROUND", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("Cosmic", "Midnight", "Aurora").forEach { style ->
+                                            Button(onClick = {
+                                                drawerBackground = style
+                                                preferences.edit().putString("drawer_background", style).apply()
+                                            }, colors = ButtonDefaults.buttonColors(containerColor = if (drawerBackground == style) NeonViolet else Color(0xFF273149)), shape = RoundedCornerShape(12.dp)) {
+                                                Text(style, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                    Text("ICON ANIMATION", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("Off", "Gentle", "Dynamic").forEach { style ->
+                                            Button(onClick = {
+                                                drawerAnimation = style
+                                                preferences.edit().putString("drawer_animation", style).apply()
+                                            }, colors = ButtonDefaults.buttonColors(containerColor = if (drawerAnimation == style) NeonViolet else Color(0xFF273149)), shape = RoundedCornerShape(12.dp)) {
+                                                Text(style, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                    Text("Gentle is recommended for smoother performance on older phones.", color = Color.LightGray, fontSize = 10.sp)
                                 }
                             }
 
@@ -785,6 +838,8 @@ private fun FloatingAppIcon(
     index: Int,
     iconSize: androidx.compose.ui.unit.Dp,
     floatingMotion: Boolean,
+    iconShape: String,
+    animationStyle: String,
     tiltX: Float,
     tiltY: Float,
     isFavorite: Boolean,
@@ -834,6 +889,16 @@ private fun FloatingAppIcon(
         else -> -3f
     } else 0f
     val lift = if (floatingMotion && index % 2 != 0) 9.dp else 0.dp
+    val shape = when (iconShape) {
+        "Rounded" -> RoundedCornerShape(22.dp)
+        "Square" -> RoundedCornerShape(8.dp)
+        else -> CircleShape
+    }
+    val animationAmount = when (animationStyle) {
+        "Off" -> 0f
+        "Dynamic" -> 9f
+        else -> 3f
+    }
 
     Column(
         modifier = Modifier
@@ -845,16 +910,16 @@ private fun FloatingAppIcon(
         Box(
             modifier = Modifier
                 .size(iconSize)
-                .shadow(18.dp, CircleShape, ambientColor = accent.copy(alpha = 0.42f),
+                .shadow(18.dp, shape, ambientColor = accent.copy(alpha = 0.42f),
                     spotColor = accent.copy(alpha = 0.55f))
-                .clip(CircleShape)
+                .clip(shape)
                 .background(Brush.linearGradient(
                     listOf(accent.copy(alpha = 0.38f), Color(0xFF17243A), Color(0xFF0A1020))
                 ))
                 .border(1.dp, Brush.linearGradient(
                     listOf(Color.White.copy(alpha = 0.8f), accent.copy(alpha = 0.55f),
                         Color.White.copy(alpha = 0.12f))
-                ), CircleShape)
+                ), shape)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -866,7 +931,7 @@ private fun FloatingAppIcon(
                     rotationY = -tiltX * 1.4f * motion
                     scaleX = pressScale
                     scaleY = pressScale
-                    translationY = if (floatingMotion) sin(bobAmount * PI).toFloat() * 6f else 0f
+                    translationY = if (animationAmount > 0f) sin(bobAmount * PI).toFloat() * animationAmount else 0f
                     cameraDistance = 26f * density
                     transformOrigin = TransformOrigin.Center
                 },
