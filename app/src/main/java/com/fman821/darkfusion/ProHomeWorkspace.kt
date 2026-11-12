@@ -16,6 +16,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -60,8 +65,27 @@ fun ProHomeWorkspace(
     val preferences = remember {
         context.getSharedPreferences("dark_fusion_settings", android.content.Context.MODE_PRIVATE)
     }
-    val pages = remember(apps) { apps.chunked(12) }
+    var orderedApps by remember(apps) {
+        val saved = preferences.getString("home_app_order", null)
+            ?.split("|")?.filter { it.isNotBlank() }.orEmpty()
+        val byPackage = apps.associateBy { it.packageName }
+        val restored = saved.mapNotNull { byPackage[it] }
+        mutableStateOf(restored + apps.filterNot { saved.contains(it.packageName) })
+    }
+    val pages = remember(orderedApps) { orderedApps.chunked(12) }
     val pageCount = maxOf(3, pages.size)
+    fun moveHomeApp(fromPackage: String, toPackage: String) {
+        val updated = orderedApps.toMutableList()
+        val from = updated.indexOfFirst { it.packageName == fromPackage }
+        val to = updated.indexOfFirst { it.packageName == toPackage }
+        if (from >= 0 && to >= 0 && from != to) {
+            val moved = updated.removeAt(from)
+            updated.add(to, moved)
+            orderedApps = updated
+            preferences.edit().putString("home_app_order",
+                updated.joinToString("|") { it.packageName }).apply()
+        }
+    }
     val pagerState = rememberPagerState(pageCount = { pageCount })
     val dockApps = (favoriteApps + apps.filterNot { app ->
         favoriteApps.any { it.packageName == app.packageName }
@@ -143,7 +167,7 @@ fun ProHomeWorkspace(
                     Text("YOUR SHORTCUTS", color = WorkspaceCyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(8.dp))
-                    WorkspaceAppGrid(pageApps.ifEmpty { apps.take(12) }, onLaunchApp)
+                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp)
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
@@ -158,7 +182,7 @@ fun ProHomeWorkspace(
                             Text("Your next home page is ready.", color = Color.LightGray, fontSize = 12.sp)
                         }
                     } else {
-                        WorkspaceAppGrid(pageApps, onLaunchApp)
+                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp)
                     }
                 }
             }
@@ -217,18 +241,79 @@ fun ProHomeWorkspace(
 @Composable
 private fun WorkspaceAppGrid(
     apps: List<LauncherApp>,
-    onLaunchApp: (String) -> Unit
+    onLaunchApp: (String) -> Unit,
+    onMoveApp: (String, String) -> Unit
 ) {
+    val gridState = rememberLazyGridState()
+    var draggingPackage by remember { mutableStateOf<String?>(null) }
+    var dragOrigin by remember { mutableStateOf(Offset.Zero) }
+    var dragDelta by remember { mutableStateOf(Offset.Zero) }
+
     LazyVerticalGrid(
+        state = gridState,
         columns = GridCells.Fixed(3),
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(apps, key = { it.packageName }) { app ->
+            val isDragging = draggingPackage == app.packageName
             Column(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                    .clickable { onLaunchApp(app.packageName) }.padding(vertical = 7.dp),
+                modifier = Modifier.fillMaxWidth()
+                    .graphicsLayer {
+                        if (isDragging) {
+                            translationX = dragDelta.x
+                            translationY = dragDelta.y
+                            scaleX = 1.08f
+                            scaleY = 1.08f
+                        }
+                    }
+                    .clip(RoundedCornerShape(18.dp))
+                    .pointerInput(app.packageName, apps) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { localStart ->
+                                draggingPackage = app.packageName
+                                dragOrigin = localStart
+                                dragDelta = Offset.Zero
+                            },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                dragDelta += amount
+                                val current = gridState.layoutInfo.visibleItemsInfo
+                                    .firstOrNull { it.key == draggingPackage }
+                                if (current != null) {
+                                    val center = Offset(
+                                        current.offset.x + dragOrigin.x + dragDelta.x,
+                                        current.offset.y + dragOrigin.y + dragDelta.y
+                                    )
+                                    val target = gridState.layoutInfo.visibleItemsInfo
+                                        .filter { it.key != draggingPackage }
+                                        .minByOrNull { item ->
+                                            val itemCenter = Offset(
+                                                item.offset.x + item.size.width / 2f,
+                                                item.offset.y + item.size.height / 2f
+                                            )
+                                            (itemCenter - center).getDistance()
+                                        }
+                                    target?.key?.toString()?.let { targetPackage ->
+                                        if (targetPackage != draggingPackage) {
+                                            draggingPackage?.let { onMoveApp(it, targetPackage) }
+                                        }
+                                    }
+                                }
+                            },
+                            onDragEnd = {
+                                draggingPackage = null
+                                dragDelta = Offset.Zero
+                            },
+                            onDragCancel = {
+                                draggingPackage = null
+                                dragDelta = Offset.Zero
+                            }
+                        )
+                    }
+                    .clickable(enabled = !isDragging) { onLaunchApp(app.packageName) }
+                    .padding(vertical = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
@@ -237,7 +322,7 @@ private fun WorkspaceAppGrid(
                             WorkspaceViolet.copy(alpha = 0.55f),
                             Color(0xFF17243A), Color(0xFF0A1020)
                         )))
-                        .border(1.dp, WorkspaceCyan.copy(alpha = 0.35f), CircleShape),
+                        .border(1.dp, if (isDragging) WorkspaceCyan else WorkspaceCyan.copy(alpha = 0.35f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(app.label.take(1).uppercase(), color = Color.White,
@@ -246,6 +331,10 @@ private fun WorkspaceAppGrid(
                 Spacer(Modifier.height(5.dp))
                 Text(app.label, color = Color(0xFFECEBFA), fontSize = 10.sp,
                     maxLines = 1)
+                if (isDragging) {
+                    Text("MOVING", color = WorkspaceCyan, fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
