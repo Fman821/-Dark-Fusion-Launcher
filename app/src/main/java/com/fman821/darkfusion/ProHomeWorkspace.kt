@@ -38,6 +38,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import android.appwidget.AppWidgetHost
+import android.appwidget.AppWidgetManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,7 +64,12 @@ fun ProHomeWorkspace(
     onOpenCalendar: () -> Unit,
     dockCount: Int,
     dockVisible: Boolean,
-    dockOpacity: Float
+    dockOpacity: Float,
+    appWidgetHost: AppWidgetHost,
+    appWidgetManager: AppWidgetManager,
+    widgetIds: List<Int>,
+    onAddWidget: () -> Unit,
+    onRemoveWidget: (Int) -> Unit
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -166,7 +173,15 @@ fun ProHomeWorkspace(
                         WorkspaceQuickTile("CALENDAR", "Open calendar", WorkspacePink, onOpenCalendar,
                             Modifier.weight(1f))
                     }
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(10.dp))
+                    WidgetShelf(
+                        host = appWidgetHost,
+                        manager = appWidgetManager,
+                        widgetIds = widgetIds,
+                        onAddWidget = onAddWidget,
+                        onRemoveWidget = onRemoveWidget
+                    )
+                    Spacer(Modifier.height(10.dp))
                     Text("YOUR SHORTCUTS", color = WorkspaceCyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(8.dp))
