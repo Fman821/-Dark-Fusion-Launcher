@@ -1,5 +1,7 @@
 package com.fman821.darkfusion
 
+import android.appwidget.AppWidgetHost
+import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -11,6 +13,8 @@ import android.hardware.SensorManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -89,6 +93,18 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private var accelerometer: Sensor? = null
     private var deviceTiltX by mutableStateOf(0f)
     private var deviceTiltY by mutableStateOf(0f)
+    private lateinit var appWidgetHost: AppWidgetHost
+    private lateinit var appWidgetManager: AppWidgetManager
+
+    override fun onStart() {
+        super.onStart()
+        if (::appWidgetHost.isInitialized) runCatching { appWidgetHost.startListening() }
+    }
+
+    override fun onStop() {
+        if (::appWidgetHost.isInitialized) runCatching { appWidgetHost.stopListening() }
+        super.onStop()
+    }
 
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type != Sensor.TYPE_ACCELEROMETER) return
@@ -126,6 +142,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        appWidgetHost = AppWidgetHost(this, 1024)
+        appWidgetManager = AppWidgetManager.getInstance(this)
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         val installedApps = loadApps()
         setContent {
@@ -139,6 +157,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     apps = installedApps,
                     tiltX = deviceTiltX,
                     tiltY = deviceTiltY,
+                    appWidgetHost = appWidgetHost,
+                    appWidgetManager = appWidgetManager,
                     onLaunchApp = { packageName ->
                         packageManager.getLaunchIntentForPackage(packageName)?.let(::startActivity)
                     },
@@ -156,6 +176,8 @@ private fun FusionHome(
     apps: List<LauncherApp>,
     tiltX: Float,
     tiltY: Float,
+    appWidgetHost: AppWidgetHost,
+    appWidgetManager: AppWidgetManager,
     onLaunchApp: (String) -> Unit,
     onChooseHome: () -> Unit
 ) {
@@ -169,6 +191,60 @@ private fun FusionHome(
     var dockCount by remember { mutableStateOf(preferences.getInt("dock_count", 4)) }
     var dockVisible by remember { mutableStateOf(preferences.getBoolean("dock_visible", true)) }
     var dockOpacity by remember { mutableStateOf(preferences.getFloat("dock_opacity", 0.92f)) }
+    var homeWidgetIds by remember {
+        mutableStateOf(preferences.getString("home_widget_ids", "").orEmpty()
+            .split(",").mapNotNull { it.toIntOrNull() })
+    }
+    var pendingWidgetId by remember { mutableStateOf(AppWidgetManager.INVALID_APPWIDGET_ID) }
+    fun saveHomeWidget(id: Int) {
+        homeWidgetIds = (homeWidgetIds + id).distinct()
+        preferences.edit().putString("home_widget_ids", homeWidgetIds.joinToString(",")).apply()
+    }
+    val widgetConfigureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK && pendingWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            saveHomeWidget(pendingWidgetId)
+        } else if (pendingWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+        }
+        pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+    }
+    val widgetPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val pickedId = result.data?.getIntExtra(
+            AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID
+        ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
+        if (result.resultCode == android.app.Activity.RESULT_OK && pickedId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            pendingWidgetId = pickedId
+            val provider = appWidgetManager.getAppWidgetInfo(pickedId)
+            if (provider?.configure != null) {
+                val configureIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
+                    .setComponent(provider.configure)
+                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pickedId)
+                widgetConfigureLauncher.launch(configureIntent)
+            } else {
+                saveHomeWidget(pickedId)
+                pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+            }
+        } else if (pendingWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+            pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+        }
+    }
+    fun openWidgetPicker() {
+        val newId = appWidgetHost.allocateAppWidgetId()
+        pendingWidgetId = newId
+        val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, newId)
+        widgetPickerLauncher.launch(pickIntent)
+    }
+    fun removeHomeWidget(id: Int) {
+        homeWidgetIds = homeWidgetIds.filterNot { it == id }
+        preferences.edit().putString("home_widget_ids", homeWidgetIds.joinToString(",")).apply()
+        appWidgetHost.deleteAppWidgetId(id)
+    }
     var favorites by remember {
         mutableStateOf(preferences.getStringSet("favorite_apps", emptySet())?.toSet() ?: emptySet())
     }
@@ -261,7 +337,12 @@ private fun FusionHome(
                             },
                             dockCount = dockCount,
                             dockVisible = dockVisible,
-                            dockOpacity = dockOpacity
+                            dockOpacity = dockOpacity,
+                            appWidgetHost = appWidgetHost,
+                            appWidgetManager = appWidgetManager,
+                            widgetIds = homeWidgetIds,
+                            onAddWidget = ::openWidgetPicker,
+                            onRemoveWidget = ::removeHomeWidget
                         )
                     }
                     "Apps" -> {
