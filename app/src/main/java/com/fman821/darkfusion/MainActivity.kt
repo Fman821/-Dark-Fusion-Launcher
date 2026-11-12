@@ -350,7 +350,9 @@ private fun FusionHome(
                                     "Home" -> selectedTab = "Home"
                                     else -> selectedTab = "Apps"
                                 }
-                            }
+                            },
+                            onSwipeUpHome = { selectedTab = "Apps" },
+                            onSwipeDownHome = { selectedTab = "Customize" }
                         )
                     }
                     "Apps" -> {
