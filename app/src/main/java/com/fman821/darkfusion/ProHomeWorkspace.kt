@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
@@ -71,7 +72,9 @@ fun ProHomeWorkspace(
     widgetIds: List<Int>,
     onAddWidget: () -> Unit,
     onRemoveWidget: (Int) -> Unit,
-    onDoubleTapHome: () -> Unit
+    onDoubleTapHome: () -> Unit,
+    onSwipeUpHome: () -> Unit,
+    onSwipeDownHome: () -> Unit
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -118,7 +121,23 @@ fun ProHomeWorkspace(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().pointerInput(onSwipeUpHome, onSwipeDownHome) {
+                var verticalDistance = 0f
+                detectVerticalDragGestures(
+                    onVerticalDrag = { change, dragAmount ->
+                        verticalDistance += dragAmount
+                        change.consume()
+                    },
+                    onDragEnd = {
+                        when {
+                            verticalDistance < -60f -> onSwipeUpHome()
+                            verticalDistance > 60f -> onSwipeDownHome()
+                        }
+                        verticalDistance = 0f
+                    },
+                    onDragCancel = { verticalDistance = 0f }
+                )
+            },
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
