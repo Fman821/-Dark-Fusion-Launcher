@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
@@ -69,7 +70,8 @@ fun ProHomeWorkspace(
     appWidgetManager: AppWidgetManager,
     widgetIds: List<Int>,
     onAddWidget: () -> Unit,
-    onRemoveWidget: (Int) -> Unit
+    onRemoveWidget: (Int) -> Unit,
+    onDoubleTapHome: () -> Unit
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -110,7 +112,9 @@ fun ProHomeWorkspace(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().pointerInput(onDoubleTapHome) {
+            detectTapGestures(onDoubleTap = { onDoubleTapHome() })
+        },
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(
