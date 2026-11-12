@@ -195,6 +195,18 @@ private fun FusionHome(
     var drawerIconShape by remember { mutableStateOf(preferences.getString("drawer_icon_shape", "Circle") ?: "Circle") }
     var drawerBackground by remember { mutableStateOf(preferences.getString("drawer_background", "Cosmic") ?: "Cosmic") }
     var drawerAnimation by remember { mutableStateOf(preferences.getString("drawer_animation", "Gentle") ?: "Gentle") }
+    var appSort by remember { mutableStateOf(preferences.getString("app_sort", "Name") ?: "Name") }
+    var folderNameInput by remember { mutableStateOf("") }
+    var folderAppPackage by remember { mutableStateOf("") }
+    var customFolders by remember {
+        mutableStateOf(
+            preferences.getString("custom_app_folders", "").orEmpty()
+                .split(";").filter { it.contains("=") }.associate { entry ->
+                    val parts = entry.split("=", limit = 2)
+                    parts[0] to parts[1].split(",").filter { it.isNotBlank() }.toSet()
+                }
+        )
+    }
     var homeWidgetIds by remember {
         mutableStateOf(preferences.getString("home_widget_ids", "").orEmpty()
             .split(",").mapNotNull { it.toIntOrNull() })
@@ -267,14 +279,27 @@ private fun FusionHome(
             else -> "Other"
         }
     }
-    val categories = listOf("All", "Favorites", "Communication", "Social", "Media", "Games", "Tools", "Other")
-    val filteredApps = apps.filter { app ->
+    val categories = listOf("All", "Favorites", "Communication", "Social", "Media", "Games", "Tools", "Other") + customFolders.keys
+    val sortedApps = when (appSort) {
+        "Reverse" -> apps.sortedByDescending { it.label.lowercase() }
+        "Favorites first" -> apps.sortedWith(compareByDescending<LauncherApp> { favorites.contains(it.packageName) }.thenBy { it.label.lowercase() })
+        else -> apps.sortedBy { it.label.lowercase() }
+    }
+    val filteredApps = sortedApps.filter { app ->
         !hiddenApps.contains(app.packageName) && app.label.contains(search, ignoreCase = true) &&
             when (selectedCategory) {
                 "All" -> true
                 "Favorites" -> favorites.contains(app.packageName)
+                in customFolders -> customFolders[selectedCategory]?.contains(app.packageName) == true
                 else -> categoryFor(app) == selectedCategory
             }
+    }
+    fun saveCustomFolders(updated: Map<String, Set<String>>) {
+        customFolders = updated
+        val encoded = updated.entries.joinToString(";") { (name, packages) ->
+            "$name=${packages.joinToString(",")}"
+        }
+        preferences.edit().putString("custom_app_folders", encoded).apply()
     }
     fun toggleFavorite(packageName: String) {
         val updated = favorites.toMutableSet()
@@ -471,6 +496,72 @@ private fun FusionHome(
                                                 ),
                                                 shape = RoundedCornerShape(12.dp)
                                             ) { Text("${count} columns", fontSize = 10.sp) }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("APP SORTING", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Choose the order of apps in your drawer.", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                        listOf("Name", "Reverse", "Favorites first").forEach { option ->
+                                            Button(onClick = {
+                                                appSort = option
+                                                preferences.edit().putString("app_sort", option).apply()
+                                            }, colors = ButtonDefaults.buttonColors(containerColor = if (appSort == option) NeonViolet else Color(0xFF273149)), shape = RoundedCornerShape(12.dp)) {
+                                                Text(option, fontSize = 9.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonPink.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("CUSTOM APP FOLDERS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Choose an app, name a folder, then create it or add the app to an existing folder.", color = Color.LightGray, fontSize = 11.sp)
+                                    OutlinedTextField(value = folderNameInput, onValueChange = { folderNameInput = it.take(24).replace(";", "").replace("=", "") }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Folder name") })
+                                    Text("SELECT APP", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                        apps.forEach { app ->
+                                            Button(onClick = { folderAppPackage = app.packageName }, colors = ButtonDefaults.buttonColors(containerColor = if (folderAppPackage == app.packageName) NeonViolet else Color(0xFF273149)), shape = RoundedCornerShape(10.dp)) {
+                                                Text(app.label.take(13), fontSize = 9.sp, maxLines = 1)
+                                            }
+                                        }
+                                    }
+                                    Button(onClick = {
+                                        val name = folderNameInput.trim()
+                                        if (name.isNotEmpty() && folderAppPackage.isNotBlank()) {
+                                            val updated = customFolders.toMutableMap()
+                                            updated[name] = updated[name].orEmpty() + folderAppPackage
+                                            saveCustomFolders(updated)
+                                            selectedCategory = name
+                                            folderNameInput = ""
+                                        }
+                                    }, enabled = folderNameInput.isNotBlank() && folderAppPackage.isNotBlank(), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = NeonViolet), shape = RoundedCornerShape(12.dp)) {
+                                        Text("Create folder / Add selected app")
+                                    }
+                                    customFolders.forEach { (name, packages) ->
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Text("$name  •  ${packages.size} apps", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                                            Button(onClick = {
+                                                val updated = customFolders.toMutableMap()
+                                                updated.remove(name)
+                                                saveCustomFolders(updated)
+                                                if (selectedCategory == name) selectedCategory = "All"
+                                            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5A2948)), shape = RoundedCornerShape(10.dp)) { Text("Delete", fontSize = 9.sp) }
                                         }
                                     }
                                 }
