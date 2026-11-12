@@ -242,7 +242,7 @@ private fun FusionHome(
 
                 when (selectedTab) {
                     "Home" -> {
-                        HomeDashboard(
+                        ProHomeWorkspace(
                             apps = apps,
                             onLaunchApp = onLaunchApp,
                             onChooseHome = onChooseHome,
