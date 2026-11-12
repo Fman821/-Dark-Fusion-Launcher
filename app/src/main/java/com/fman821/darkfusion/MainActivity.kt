@@ -191,6 +191,7 @@ private fun FusionHome(
     var dockCount by remember { mutableStateOf(preferences.getInt("dock_count", 4)) }
     var dockVisible by remember { mutableStateOf(preferences.getBoolean("dock_visible", true)) }
     var dockOpacity by remember { mutableStateOf(preferences.getFloat("dock_opacity", 0.92f)) }
+    var doubleTapAction by remember { mutableStateOf(preferences.getString("gesture_double_tap", "Apps") ?: "Apps") }
     var homeWidgetIds by remember {
         mutableStateOf(preferences.getString("home_widget_ids", "").orEmpty()
             .split(",").mapNotNull { it.toIntOrNull() })
@@ -342,7 +343,14 @@ private fun FusionHome(
                             appWidgetManager = appWidgetManager,
                             widgetIds = homeWidgetIds,
                             onAddWidget = ::openWidgetPicker,
-                            onRemoveWidget = ::removeHomeWidget
+                            onRemoveWidget = ::removeHomeWidget,
+                            onDoubleTapHome = {
+                                when (doubleTapAction) {
+                                    "Customize" -> selectedTab = "Customize"
+                                    "Home" -> selectedTab = "Home"
+                                    else -> selectedTab = "Apps"
+                                }
+                            }
                         )
                     }
                     "Apps" -> {
@@ -506,6 +514,33 @@ private fun FusionHome(
                                         },
                                         valueRange = 0.35f..1f
                                     )
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("HOME GESTURES", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Choose what a double tap on an empty area of Home does.", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("Apps", "Customize", "Home").forEach { action ->
+                                            Button(
+                                                onClick = {
+                                                    doubleTapAction = action
+                                                    preferences.edit().putString("gesture_double_tap", action).apply()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (doubleTapAction == action) NeonViolet else Color(0xFF273149)
+                                                ),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) { Text(action, fontSize = 10.sp) }
+                                        }
+                                    }
+                                    Text("Double-tap the Home workspace to run this action.", color = NeonCyan, fontSize = 10.sp)
                                 }
                             }
 
