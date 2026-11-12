@@ -166,6 +166,9 @@ private fun FusionHome(
     var iconSize by remember { mutableStateOf(preferences.getInt("icon_size", 76).toFloat()) }
     var gridColumns by remember { mutableStateOf(preferences.getInt("grid_columns", 3)) }
     var floatingMotion by remember { mutableStateOf(preferences.getBoolean("floating_motion", true)) }
+    var dockCount by remember { mutableStateOf(preferences.getInt("dock_count", 4)) }
+    var dockVisible by remember { mutableStateOf(preferences.getBoolean("dock_visible", true)) }
+    var dockOpacity by remember { mutableStateOf(preferences.getFloat("dock_opacity", 0.92f)) }
     var favorites by remember {
         mutableStateOf(preferences.getStringSet("favorite_apps", emptySet())?.toSet() ?: emptySet())
     }
@@ -255,7 +258,10 @@ private fun FusionHome(
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALENDAR))
                                 }
-                            }
+                            },
+                            dockCount = dockCount,
+                            dockVisible = dockVisible,
+                            dockOpacity = dockOpacity
                         )
                     }
                     "Apps" -> {
@@ -376,6 +382,56 @@ private fun FusionHome(
                                 modifier = Modifier.fillMaxWidth(),
                                 color = SpacePanel,
                                 shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text("CUSTOM DOCK", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Choose how many shortcuts appear at the bottom of Home.", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        (3..6).forEach { count ->
+                                            Button(
+                                                onClick = {
+                                                    dockCount = count
+                                                    preferences.edit().putInt("dock_count", count).apply()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (dockCount == count) NeonViolet else Color(0xFF273149)
+                                                ),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) { Text("$count", fontSize = 11.sp) }
+                                        }
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                dockVisible = !dockVisible
+                                                preferences.edit().putBoolean("dock_visible", dockVisible).apply()
+                                            }.padding(vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Show Home Dock", color = Color.White, fontSize = 12.sp)
+                                        Text(if (dockVisible) "ON" else "OFF",
+                                            color = if (dockVisible) NeonCyan else NeonPink,
+                                            fontWeight = FontWeight.Bold)
+                                    }
+                                    Text("DOCK TRANSPARENCY  ${(dockOpacity * 100).toInt()}%",
+                                        color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Slider(
+                                        value = dockOpacity,
+                                        onValueChange = {
+                                            dockOpacity = it
+                                            preferences.edit().putFloat("dock_opacity", it).apply()
+                                        },
+                                        valueRange = 0.35f..1f
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, NeonPink.copy(alpha = 0.35f))
                             ) {
                                 Row(
@@ -430,6 +486,9 @@ private fun FusionHome(
                                     iconSize = 76f
                                     gridColumns = 3
                                     floatingMotion = true
+                                    dockCount = 4
+                                    dockVisible = true
+                                    dockOpacity = 0.92f
                                     hiddenApps = emptySet()
                                     favorites = emptySet()
                                     preferences.edit().clear().apply()
