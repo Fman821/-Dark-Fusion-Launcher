@@ -19,6 +19,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.horizontalScroll
@@ -41,6 +42,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -162,6 +165,12 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     onLaunchApp = { packageName ->
                         packageManager.getLaunchIntentForPackage(packageName)?.let(::startActivity)
                     },
+                    onOpenAppInfo = { packageName ->
+                        runCatching {
+                            startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                android.net.Uri.parse("package:$packageName")))
+                        }
+                    },
                     onChooseHome = {
                         startActivity(Intent(android.provider.Settings.ACTION_HOME_SETTINGS))
                     }
@@ -179,6 +188,7 @@ private fun FusionHome(
     appWidgetHost: AppWidgetHost,
     appWidgetManager: AppWidgetManager,
     onLaunchApp: (String) -> Unit,
+    onOpenAppInfo: (String) -> Unit,
     onChooseHome: () -> Unit
 ) {
     var search by remember { mutableStateOf("") }
@@ -279,16 +289,18 @@ private fun FusionHome(
             else -> "Other"
         }
     }
-    val categories = listOf("All", "Favorites", "Communication", "Social", "Media", "Games", "Tools", "Other") + customFolders.keys
+    val categories = listOf("All", "Favorites", "Hidden", "Communication", "Social", "Media", "Games", "Tools", "Other") + customFolders.keys
     val sortedApps = when (appSort) {
         "Reverse" -> apps.sortedByDescending { it.label.lowercase() }
         "Favorites first" -> apps.sortedWith(compareByDescending<LauncherApp> { favorites.contains(it.packageName) }.thenBy { it.label.lowercase() })
         else -> apps.sortedBy { it.label.lowercase() }
     }
     val filteredApps = sortedApps.filter { app ->
-        !hiddenApps.contains(app.packageName) && app.label.contains(search, ignoreCase = true) &&
+        (if (selectedCategory == "Hidden") hiddenApps.contains(app.packageName) else !hiddenApps.contains(app.packageName)) &&
+            app.label.contains(search, ignoreCase = true) &&
             when (selectedCategory) {
                 "All" -> true
+                "Hidden" -> true
                 "Favorites" -> favorites.contains(app.packageName)
                 in customFolders -> customFolders[selectedCategory]?.contains(app.packageName) == true
                 else -> categoryFor(app) == selectedCategory
@@ -439,6 +451,8 @@ private fun FusionHome(
                                     tiltY = tiltY,
                                     isFavorite = favorites.contains(app.packageName),
                                     onToggleFavorite = { toggleFavorite(app.packageName) },
+                                    onToggleHidden = { toggleHidden(app.packageName) },
+                                    onOpenAppInfo = { onOpenAppInfo(app.packageName) },
                                     onClick = { onLaunchApp(app.packageName) }
                                 )
                             }
@@ -935,9 +949,12 @@ private fun FloatingAppIcon(
     tiltY: Float,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
+    onToggleHidden: () -> Unit,
+    onOpenAppInfo: () -> Unit,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    var showAppMenu by remember(app.packageName) { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale by animateFloatAsState(
@@ -1011,10 +1028,11 @@ private fun FloatingAppIcon(
                     listOf(Color.White.copy(alpha = 0.8f), accent.copy(alpha = 0.55f),
                         Color.White.copy(alpha = 0.12f))
                 ), shape)
-                .clickable(
+                .combinedClickable(
                     interactionSource = interactionSource,
                     indication = null,
-                    onClick = onClick
+                    onClick = onClick,
+                    onLongClick = { showAppMenu = true }
                 )
                 .graphicsLayer {
                     val motion = if (floatingMotion) 1f else 0f
@@ -1028,6 +1046,23 @@ private fun FloatingAppIcon(
                 },
             contentAlignment = Alignment.Center
         ) {
+            DropdownMenu(
+                expanded = showAppMenu,
+                onDismissRequest = { showAppMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(if (isFavorite) "Remove from favorites" else "Add to favorites") },
+                    onClick = { showAppMenu = false; onToggleFavorite() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Hide app") },
+                    onClick = { showAppMenu = false; onToggleHidden() }
+                )
+                DropdownMenuItem(
+                    text = { Text("App info") },
+                    onClick = { showAppMenu = false; onOpenAppInfo() }
+                )
+            }
             Text(
                 if (isFavorite) "★" else "☆",
                 modifier = Modifier.align(Alignment.TopEnd).padding(5.dp)
