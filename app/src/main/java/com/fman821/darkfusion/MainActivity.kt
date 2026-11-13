@@ -202,6 +202,7 @@ private fun FusionHome(
     val preferences = remember { context.getSharedPreferences("dark_fusion_settings", android.content.Context.MODE_PRIVATE) }
     var iconSize by remember { mutableStateOf(preferences.getInt("icon_size", 76).toFloat()) }
     var gridColumns by remember { mutableStateOf(preferences.getInt("grid_columns", 3)) }
+    var showAppLabels by remember { mutableStateOf(preferences.getBoolean("show_app_labels", true)) }
     var floatingMotion by remember { mutableStateOf(preferences.getBoolean("floating_motion", true)) }
     var dockCount by remember { mutableStateOf(preferences.getInt("dock_count", 4)) }
     var dockVisible by remember { mutableStateOf(preferences.getBoolean("dock_visible", true)) }
@@ -489,6 +490,7 @@ private fun FusionHome(
                                         animationStyle = drawerAnimation,
                                         iconPackPackage = activeIconPack?.packageName,
                                         iconPackIconId = activeIconPack?.appIcons?.get(app.packageName),
+                                        showLabel = showAppLabels,
                                         tiltX = tiltX,
                                         tiltY = tiltY,
                                         isFavorite = favorites.contains(app.packageName),
@@ -529,6 +531,34 @@ private fun FusionHome(
                                         valueRange = 64f..96f
                                     )
                                     Text("Adjust the size of floating app icons.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonPink.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("APP LABELS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("Show or hide names below app icons.", color = Color.LightGray, fontSize = 11.sp)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            showAppLabels = !showAppLabels
+                                            preferences.edit().putBoolean("show_app_labels", showAppLabels).apply()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (showAppLabels) NeonViolet else Color(0xFF273149)
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) { Text(if (showAppLabels) "ON" else "OFF", fontSize = 11.sp) }
                                 }
                             }
 
@@ -1019,6 +1049,7 @@ private fun FloatingAppIcon(
     animationStyle: String,
     iconPackPackage: String?,
     iconPackIconId: Int?,
+    showLabel: Boolean,
     tiltX: Float,
     tiltY: Float,
     isFavorite: Boolean,
@@ -1164,8 +1195,10 @@ private fun FloatingAppIcon(
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(app.label, color = Color(0xFFECEBFA), fontSize = 11.sp,
-            maxLines = 1, fontWeight = FontWeight.Medium)
+        if (showLabel) {
+            Spacer(Modifier.height(8.dp))
+            Text(app.label, color = Color(0xFFECEBFA), fontSize = 11.sp,
+                maxLines = 1, fontWeight = FontWeight.Medium)
+        }
     }
 }
