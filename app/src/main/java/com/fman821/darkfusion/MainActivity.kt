@@ -202,6 +202,7 @@ private fun FusionHome(
     val preferences = remember { context.getSharedPreferences("dark_fusion_settings", android.content.Context.MODE_PRIVATE) }
     var iconSize by remember { mutableStateOf(preferences.getInt("icon_size", 76).toFloat()) }
     var homeIconSize by remember { mutableStateOf(preferences.getInt("home_icon_size", 58).toFloat()) }
+    var homeGridSpacing by remember { mutableStateOf(preferences.getInt("home_grid_spacing", 12).toFloat()) }
     var gridColumns by remember { mutableStateOf(preferences.getInt("grid_columns", 3)) }
     var showAppLabels by remember { mutableStateOf(preferences.getBoolean("show_app_labels", true)) }
     var floatingMotion by remember { mutableStateOf(preferences.getBoolean("floating_motion", true)) }
@@ -408,7 +409,8 @@ private fun FusionHome(
                             iconPackIcons = activeIconPack?.appIcons.orEmpty(),
                             showAppLabels = showAppLabels,
                             gridColumns = gridColumns,
-                            homeIconSize = homeIconSize
+                            homeIconSize = homeIconSize,
+                            homeGridSpacing = homeGridSpacing
                         )
                     }
                     "Apps" -> {
@@ -557,6 +559,27 @@ private fun FusionHome(
                                         valueRange = 44f..76f
                                     )
                                     Text("Change shortcut icon size on your home pages. This setting is separate from the app drawer.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonViolet.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("HOME GRID SPACING", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("${homeGridSpacing.toInt()} dp", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(
+                                        value = homeGridSpacing,
+                                        onValueChange = {
+                                            homeGridSpacing = it
+                                            preferences.edit().putInt("home_grid_spacing", it.toInt()).apply()
+                                        },
+                                        valueRange = 4f..20f
+                                    )
+                                    Text("Adjust the space between home screen app icons.", color = Color.LightGray, fontSize = 11.sp)
                                 }
                             }
 
