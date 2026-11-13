@@ -404,7 +404,8 @@ private fun FusionHome(
                             onSwipeUpHome = { selectedTab = "Apps" },
                             onSwipeDownHome = { selectedTab = "Customize" },
                             iconPackPackage = activeIconPack?.packageName,
-                            iconPackIcons = activeIconPack?.appIcons.orEmpty()
+                            iconPackIcons = activeIconPack?.appIcons.orEmpty(),
+                            showAppLabels = showAppLabels
                         )
                     }
                     "Apps" -> {
