@@ -83,7 +83,8 @@ fun ProHomeWorkspace(
     iconPackIcons: Map<String, Int> = emptyMap(),
     showAppLabels: Boolean = true,
     gridColumns: Int = 3,
-    homeIconSize: Float = 58f
+    homeIconSize: Float = 58f,
+    homeGridSpacing: Float = 12f
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -217,7 +218,7 @@ fun ProHomeWorkspace(
                     Text("YOUR SHORTCUTS", color = WorkspaceCyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(8.dp))
-                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize)
+                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize, homeGridSpacing)
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
@@ -232,7 +233,7 @@ fun ProHomeWorkspace(
                             Text("Your next home page is ready.", color = Color.LightGray, fontSize = 12.sp)
                         }
                     } else {
-                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize)
+                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize, homeGridSpacing)
                     }
                 }
             }
@@ -301,7 +302,8 @@ private fun WorkspaceAppGrid(
     iconPackIcons: Map<String, Int>,
     showAppLabels: Boolean,
     gridColumns: Int,
-    homeIconSize: Float
+    homeIconSize: Float,
+    homeGridSpacing: Float
 ) {
     val gridState = rememberLazyGridState()
     var draggingPackage by remember { mutableStateOf<String?>(null) }
@@ -312,8 +314,8 @@ private fun WorkspaceAppGrid(
         state = gridState,
         columns = GridCells.Fixed(gridColumns.coerceIn(3, 5)),
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(homeGridSpacing.coerceIn(4f, 20f).dp),
+        horizontalArrangement = Arrangement.spacedBy(homeGridSpacing.coerceIn(4f, 20f).dp)
     ) {
         items(apps, key = { it.packageName }) { app ->
             val isDragging = draggingPackage == app.packageName
