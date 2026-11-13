@@ -410,6 +410,14 @@ private fun FusionHome(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             label = { Text("Search your universe") },
+                            placeholder = { Text("Find an app...", color = Color.Gray) },
+                            trailingIcon = {
+                                if (search.isNotEmpty()) {
+                                    TextButton(onClick = { search = "" }) {
+                                        Text("CLEAR", color = NeonCyan, fontSize = 9.sp)
+                                    }
+                                }
+                            },
                             shape = RoundedCornerShape(18.dp)
                         )
                         Spacer(Modifier.height(12.dp))
@@ -434,28 +442,52 @@ private fun FusionHome(
                             color = NeonPink, fontSize = 10.sp, letterSpacing = 1.2.sp
                         )
                         Spacer(Modifier.height(8.dp))
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(gridColumns),
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(18.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            itemsIndexed(filteredApps, key = { _, app -> app.packageName }) { index, app ->
-                                FloatingAppIcon(
-                                    app = app,
-                                    index = index,
-                                    iconSize = iconSize.dp,
-                                    floatingMotion = floatingMotion,
-                                    iconShape = drawerIconShape,
-                                    animationStyle = drawerAnimation,
-                                    tiltX = tiltX,
-                                    tiltY = tiltY,
-                                    isFavorite = favorites.contains(app.packageName),
-                                    onToggleFavorite = { toggleFavorite(app.packageName) },
-                                    onToggleHidden = { toggleHidden(app.packageName) },
-                                    onOpenAppInfo = { onOpenAppInfo(app.packageName) },
-                                    onClick = { onLaunchApp(app.packageName) }
-                                )
+                        if (filteredApps.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("✧", color = NeonViolet, fontSize = 42.sp)
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        if (search.isNotBlank()) "No matching apps" else "This space is empty",
+                                        color = Color.White,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(Modifier.height(5.dp))
+                                    Text(
+                                        if (search.isNotBlank()) "Try another app name or clear your search." else "Apps in this category will appear here.",
+                                        color = Color.LightGray,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(gridColumns),
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(18.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                itemsIndexed(filteredApps, key = { _, app -> app.packageName }) { index, app ->
+                                    FloatingAppIcon(
+                                        app = app,
+                                        index = index,
+                                        iconSize = iconSize.dp,
+                                        floatingMotion = floatingMotion,
+                                        iconShape = drawerIconShape,
+                                        animationStyle = drawerAnimation,
+                                        tiltX = tiltX,
+                                        tiltY = tiltY,
+                                        isFavorite = favorites.contains(app.packageName),
+                                        onToggleFavorite = { toggleFavorite(app.packageName) },
+                                        onToggleHidden = { toggleHidden(app.packageName) },
+                                        onOpenAppInfo = { onOpenAppInfo(app.packageName) },
+                                        onClick = { onLaunchApp(app.packageName) }
+                                    )
+                                }
                             }
                         }
                     }
