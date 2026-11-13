@@ -82,7 +82,8 @@ fun ProHomeWorkspace(
     iconPackPackage: String? = null,
     iconPackIcons: Map<String, Int> = emptyMap(),
     showAppLabels: Boolean = true,
-    gridColumns: Int = 3
+    gridColumns: Int = 3,
+    homeIconSize: Float = 58f
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -216,7 +217,7 @@ fun ProHomeWorkspace(
                     Text("YOUR SHORTCUTS", color = WorkspaceCyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(8.dp))
-                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns)
+                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize)
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
@@ -231,7 +232,7 @@ fun ProHomeWorkspace(
                             Text("Your next home page is ready.", color = Color.LightGray, fontSize = 12.sp)
                         }
                     } else {
-                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns)
+                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize)
                     }
                 }
             }
@@ -272,7 +273,7 @@ fun ProHomeWorkspace(
                             packageName = app.packageName,
                             iconPackPackage = iconPackPackage,
                             iconPackIconId = iconPackIcons[app.packageName],
-                            size = 30
+                            size = (homeIconSize * 0.52f).toInt().coerceIn(22, 40)
                         )
                         if (showAppLabels) Text(app.label, color = Color.White, fontSize = 8.sp, maxLines = 1)
                     }
@@ -299,7 +300,8 @@ private fun WorkspaceAppGrid(
     iconPackPackage: String?,
     iconPackIcons: Map<String, Int>,
     showAppLabels: Boolean,
-    gridColumns: Int
+    gridColumns: Int,
+    homeIconSize: Float
 ) {
     val gridState = rememberLazyGridState()
     var draggingPackage by remember { mutableStateOf<String?>(null) }
@@ -374,7 +376,7 @@ private fun WorkspaceAppGrid(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
-                    modifier = Modifier.size(58.dp).clip(CircleShape)
+                    modifier = Modifier.size(homeIconSize.coerceIn(44f, 76f).dp).clip(CircleShape)
                         .background(Brush.linearGradient(listOf(
                             WorkspaceViolet.copy(alpha = 0.55f),
                             Color(0xFF17243A), Color(0xFF0A1020)
@@ -386,7 +388,7 @@ private fun WorkspaceAppGrid(
                         packageName = app.packageName,
                         iconPackPackage = iconPackPackage,
                         iconPackIconId = iconPackIcons[app.packageName],
-                        size = 40
+                        size = (homeIconSize * 0.69f).toInt().coerceIn(30, 52)
                     )
                 }
                 if (showAppLabels) {
