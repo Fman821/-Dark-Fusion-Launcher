@@ -80,7 +80,8 @@ fun ProHomeWorkspace(
     onSwipeUpHome: () -> Unit = {},
     onSwipeDownHome: () -> Unit = {},
     iconPackPackage: String? = null,
-    iconPackIcons: Map<String, Int> = emptyMap()
+    iconPackIcons: Map<String, Int> = emptyMap(),
+    showAppLabels: Boolean = true
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -214,7 +215,7 @@ fun ProHomeWorkspace(
                     Text("YOUR SHORTCUTS", color = WorkspaceCyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(8.dp))
-                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons)
+                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels)
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
@@ -229,7 +230,7 @@ fun ProHomeWorkspace(
                             Text("Your next home page is ready.", color = Color.LightGray, fontSize = 12.sp)
                         }
                     } else {
-                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons)
+                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels)
                     }
                 }
             }
@@ -272,7 +273,7 @@ fun ProHomeWorkspace(
                             iconPackIconId = iconPackIcons[app.packageName],
                             size = 30
                         )
-                        Text(app.label, color = Color.White, fontSize = 8.sp, maxLines = 1)
+                        if (showAppLabels) Text(app.label, color = Color.White, fontSize = 8.sp, maxLines = 1)
                     }
                 }
                 if (dockApps.isEmpty()) {
@@ -295,7 +296,8 @@ private fun WorkspaceAppGrid(
     onLaunchApp: (String) -> Unit,
     onMoveApp: (String, String) -> Unit,
     iconPackPackage: String?,
-    iconPackIcons: Map<String, Int>
+    iconPackIcons: Map<String, Int>,
+    showAppLabels: Boolean
 ) {
     val gridState = rememberLazyGridState()
     var draggingPackage by remember { mutableStateOf<String?>(null) }
@@ -385,9 +387,11 @@ private fun WorkspaceAppGrid(
                         size = 40
                     )
                 }
-                Spacer(Modifier.height(5.dp))
-                Text(app.label, color = Color(0xFFECEBFA), fontSize = 10.sp,
-                    maxLines = 1)
+                if (showAppLabels) {
+                    Spacer(Modifier.height(5.dp))
+                    Text(app.label, color = Color(0xFFECEBFA), fontSize = 10.sp,
+                        maxLines = 1)
+                }
                 if (isDragging) {
                     Text("MOVING", color = WorkspaceCyan, fontSize = 8.sp,
                         fontWeight = FontWeight.Bold)
