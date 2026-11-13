@@ -81,7 +81,8 @@ fun ProHomeWorkspace(
     onSwipeDownHome: () -> Unit = {},
     iconPackPackage: String? = null,
     iconPackIcons: Map<String, Int> = emptyMap(),
-    showAppLabels: Boolean = true
+    showAppLabels: Boolean = true,
+    gridColumns: Int = 3
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -215,7 +216,7 @@ fun ProHomeWorkspace(
                     Text("YOUR SHORTCUTS", color = WorkspaceCyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(8.dp))
-                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels)
+                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns)
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
@@ -230,7 +231,7 @@ fun ProHomeWorkspace(
                             Text("Your next home page is ready.", color = Color.LightGray, fontSize = 12.sp)
                         }
                     } else {
-                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels)
+                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns)
                     }
                 }
             }
@@ -297,7 +298,8 @@ private fun WorkspaceAppGrid(
     onMoveApp: (String, String) -> Unit,
     iconPackPackage: String?,
     iconPackIcons: Map<String, Int>,
-    showAppLabels: Boolean
+    showAppLabels: Boolean,
+    gridColumns: Int
 ) {
     val gridState = rememberLazyGridState()
     var draggingPackage by remember { mutableStateOf<String?>(null) }
@@ -306,7 +308,7 @@ private fun WorkspaceAppGrid(
 
     LazyVerticalGrid(
         state = gridState,
-        columns = GridCells.Fixed(3),
+        columns = GridCells.Fixed(gridColumns.coerceIn(3, 5)),
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
