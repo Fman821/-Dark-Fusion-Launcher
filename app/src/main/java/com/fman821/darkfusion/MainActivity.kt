@@ -494,6 +494,7 @@ private fun FusionHome(
                                         tiltX = tiltX,
                                         tiltY = tiltY,
                                         isFavorite = favorites.contains(app.packageName),
+                                        isHidden = hiddenApps.contains(app.packageName),
                                         onToggleFavorite = { toggleFavorite(app.packageName) },
                                         onToggleHidden = { toggleHidden(app.packageName) },
                                         onOpenAppInfo = { onOpenAppInfo(app.packageName) },
@@ -1053,6 +1054,7 @@ private fun FloatingAppIcon(
     tiltX: Float,
     tiltY: Float,
     isFavorite: Boolean,
+    isHidden: Boolean,
     onToggleFavorite: () -> Unit,
     onToggleHidden: () -> Unit,
     onOpenAppInfo: () -> Unit,
@@ -1165,7 +1167,7 @@ private fun FloatingAppIcon(
                     onClick = { showAppMenu = false; onToggleFavorite() }
                 )
                 DropdownMenuItem(
-                    text = { Text("Hide app") },
+                    text = { Text(if (isHidden) "Show app" else "Hide app") },
                     onClick = { showAppMenu = false; onToggleHidden() }
                 )
                 DropdownMenuItem(
