@@ -1,5 +1,8 @@
 package com.fman821.darkfusion
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import android.appwidget.AppWidgetHost
@@ -74,7 +78,9 @@ fun ProHomeWorkspace(
     onRemoveWidget: (Int) -> Unit,
     onDoubleTapHome: () -> Unit,
     onSwipeUpHome: () -> Unit = {},
-    onSwipeDownHome: () -> Unit = {}
+    onSwipeDownHome: () -> Unit = {},
+    iconPackPackage: String? = null,
+    iconPackIcons: Map<String, Int> = emptyMap()
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -208,7 +214,7 @@ fun ProHomeWorkspace(
                     Text("YOUR SHORTCUTS", color = WorkspaceCyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(8.dp))
-                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp)
+                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons)
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
@@ -223,7 +229,7 @@ fun ProHomeWorkspace(
                             Text("Your next home page is ready.", color = Color.LightGray, fontSize = 12.sp)
                         }
                     } else {
-                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp)
+                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons)
                     }
                 }
             }
@@ -260,8 +266,12 @@ fun ProHomeWorkspace(
                             .clickable { onLaunchApp(app.packageName) }.padding(vertical = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(app.label.take(1).uppercase(), color = WorkspaceCyan,
-                            fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                        WorkspaceIconImage(
+                            packageName = app.packageName,
+                            iconPackPackage = iconPackPackage,
+                            iconPackIconId = iconPackIcons[app.packageName],
+                            size = 30
+                        )
                         Text(app.label, color = Color.White, fontSize = 8.sp, maxLines = 1)
                     }
                 }
@@ -283,7 +293,9 @@ fun ProHomeWorkspace(
 private fun WorkspaceAppGrid(
     apps: List<LauncherApp>,
     onLaunchApp: (String) -> Unit,
-    onMoveApp: (String, String) -> Unit
+    onMoveApp: (String, String) -> Unit,
+    iconPackPackage: String?,
+    iconPackIcons: Map<String, Int>
 ) {
     val gridState = rememberLazyGridState()
     var draggingPackage by remember { mutableStateOf<String?>(null) }
@@ -366,8 +378,12 @@ private fun WorkspaceAppGrid(
                         .border(1.dp, if (isDragging) WorkspaceCyan else WorkspaceCyan.copy(alpha = 0.35f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(app.label.take(1).uppercase(), color = Color.White,
-                        fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                    WorkspaceIconImage(
+                        packageName = app.packageName,
+                        iconPackPackage = iconPackPackage,
+                        iconPackIconId = iconPackIcons[app.packageName],
+                        size = 40
+                    )
                 }
                 Spacer(Modifier.height(5.dp))
                 Text(app.label, color = Color(0xFFECEBFA), fontSize = 10.sp,
@@ -378,6 +394,37 @@ private fun WorkspaceAppGrid(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun WorkspaceIconImage(
+    packageName: String,
+    iconPackPackage: String?,
+    iconPackIconId: Int?,
+    size: Int
+) {
+    val context = LocalContext.current
+    val bitmap = remember(packageName, iconPackPackage, iconPackIconId) {
+        runCatching {
+            val drawable = if (iconPackPackage != null && iconPackIconId != null) {
+                context.packageManager.getResourcesForApplication(iconPackPackage)
+                    .getDrawable(iconPackIconId, null)
+            } else {
+                context.packageManager.getApplicationIcon(packageName)
+            }
+            val image = Bitmap.createBitmap(144, 144, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(image)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            image.asImageBitmap()
+        }.getOrNull()
+    }
+    if (bitmap != null) {
+        Image(bitmap = bitmap, contentDescription = packageName, modifier = Modifier.size(size.dp))
+    } else {
+        Text(packageName.substringAfterLast('.').take(1).uppercase(),
+            color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     }
 }
 
