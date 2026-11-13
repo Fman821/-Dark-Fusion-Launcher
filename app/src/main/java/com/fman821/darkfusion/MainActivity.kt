@@ -201,6 +201,7 @@ private fun FusionHome(
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("dark_fusion_settings", android.content.Context.MODE_PRIVATE) }
     var iconSize by remember { mutableStateOf(preferences.getInt("icon_size", 76).toFloat()) }
+    var homeIconSize by remember { mutableStateOf(preferences.getInt("home_icon_size", 58).toFloat()) }
     var gridColumns by remember { mutableStateOf(preferences.getInt("grid_columns", 3)) }
     var showAppLabels by remember { mutableStateOf(preferences.getBoolean("show_app_labels", true)) }
     var floatingMotion by remember { mutableStateOf(preferences.getBoolean("floating_motion", true)) }
@@ -406,7 +407,8 @@ private fun FusionHome(
                             iconPackPackage = activeIconPack?.packageName,
                             iconPackIcons = activeIconPack?.appIcons.orEmpty(),
                             showAppLabels = showAppLabels,
-                            gridColumns = gridColumns
+                            gridColumns = gridColumns,
+                            homeIconSize = homeIconSize
                         )
                     }
                     "Apps" -> {
@@ -534,6 +536,27 @@ private fun FusionHome(
                                         valueRange = 64f..96f
                                     )
                                     Text("Adjust the size of floating app icons.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("HOME ICON SIZE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("${homeIconSize.toInt()} dp", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(
+                                        value = homeIconSize,
+                                        onValueChange = {
+                                            homeIconSize = it
+                                            preferences.edit().putInt("home_icon_size", it.toInt()).apply()
+                                        },
+                                        valueRange = 44f..76f
+                                    )
+                                    Text("Change shortcut icon size on your home pages. This setting is separate from the app drawer.", color = Color.LightGray, fontSize = 11.sp)
                                 }
                             }
 
