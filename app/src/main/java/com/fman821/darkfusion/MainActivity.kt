@@ -151,6 +151,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         appWidgetManager = AppWidgetManager.getInstance(this)
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         val installedApps = loadApps()
+        val installedIconPacks = IconPackManager.discover(this)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(
                 background = SpaceBlack,
@@ -160,6 +161,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             )) {
                 FusionHome(
                     apps = installedApps,
+                    iconPacks = installedIconPacks,
                     tiltX = deviceTiltX,
                     tiltY = deviceTiltY,
                     appWidgetHost = appWidgetHost,
@@ -185,6 +187,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 @Composable
 private fun FusionHome(
     apps: List<LauncherApp>,
+    iconPacks: List<IconPackInfo>,
     tiltX: Float,
     tiltY: Float,
     appWidgetHost: AppWidgetHost,
@@ -208,6 +211,8 @@ private fun FusionHome(
     var drawerBackground by remember { mutableStateOf(preferences.getString("drawer_background", "Cosmic") ?: "Cosmic") }
     var drawerAnimation by remember { mutableStateOf(preferences.getString("drawer_animation", "Gentle") ?: "Gentle") }
     var appSort by remember { mutableStateOf(preferences.getString("app_sort", "Name") ?: "Name") }
+    var selectedIconPack by remember { mutableStateOf(preferences.getString("icon_pack_package", "") ?: "") }
+    val activeIconPack = iconPacks.firstOrNull { it.packageName == selectedIconPack }
     var folderNameInput by remember { mutableStateOf("") }
     var folderAppPackage by remember { mutableStateOf("") }
     var customFolders by remember {
@@ -480,6 +485,8 @@ private fun FusionHome(
                                         floatingMotion = floatingMotion,
                                         iconShape = drawerIconShape,
                                         animationStyle = drawerAnimation,
+                                        iconPackPackage = activeIconPack?.packageName,
+                                        iconPackIconId = activeIconPack?.appIcons?.get(app.packageName),
                                         tiltX = tiltX,
                                         tiltY = tiltY,
                                         isFavorite = favorites.contains(app.packageName),
@@ -624,6 +631,34 @@ private fun FusionHome(
                                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     Text("APP DRAWER APPEARANCE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     Text("Personalize the floating universe.", color = Color.LightGray, fontSize = 11.sp)
+                                    Text("ICON PACK", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Text(activeIconPack?.label ?: "System icons", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(
+                                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                selectedIconPack = ""
+                                                preferences.edit().remove("icon_pack_package").apply()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = if (selectedIconPack.isBlank()) NeonViolet else Color(0xFF273149)),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) { Text("Default", fontSize = 10.sp) }
+                                        iconPacks.forEach { pack ->
+                                            Button(
+                                                onClick = {
+                                                    selectedIconPack = pack.packageName
+                                                    preferences.edit().putString("icon_pack_package", pack.packageName).apply()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = if (selectedIconPack == pack.packageName) NeonViolet else Color(0xFF273149)),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) { Text(pack.label.take(18), fontSize = 10.sp, maxLines = 1) }
+                                        }
+                                    }
+                                    if (iconPacks.isEmpty()) {
+                                        Text("No compatible icon packs found. Install an ADW or Nova-compatible icon pack first.", color = Color.LightGray, fontSize = 10.sp)
+                                    }
                                     Text("ICON SHAPE", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         listOf("Circle", "Rounded", "Square").forEach { shape ->
@@ -980,6 +1015,8 @@ private fun FloatingAppIcon(
     floatingMotion: Boolean,
     iconShape: String,
     animationStyle: String,
+    iconPackPackage: String?,
+    iconPackIconId: Int?,
     tiltX: Float,
     tiltY: Float,
     isFavorite: Boolean,
@@ -1010,9 +1047,14 @@ private fun FloatingAppIcon(
         ),
         label = "iconBob"
     )
-    val iconBitmap = remember(app.packageName) {
+    val iconBitmap = remember(app.packageName, iconPackPackage, iconPackIconId) {
         runCatching {
-            val drawable = context.packageManager.getApplicationIcon(app.packageName)
+            val drawable = if (iconPackPackage != null && iconPackIconId != null) {
+                val packResources = context.packageManager.getResourcesForApplication(iconPackPackage)
+                packResources.getDrawable(iconPackIconId, null)
+            } else {
+                context.packageManager.getApplicationIcon(app.packageName)
+            }
             val bitmap = Bitmap.createBitmap(144, 144, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             drawable.setBounds(0, 0, canvas.width, canvas.height)
