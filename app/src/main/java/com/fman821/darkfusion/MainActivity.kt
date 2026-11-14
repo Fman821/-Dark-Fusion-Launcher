@@ -212,6 +212,7 @@ private fun FusionHome(
     var homeWallpaperUri by remember { mutableStateOf(preferences.getString("home_wallpaper_uri", "") ?: "") }
     var wallpaperDim by remember { mutableStateOf(preferences.getFloat("home_wallpaper_dim", 0.62f)) }
     var wallpaperBlur by remember { mutableStateOf(preferences.getFloat("home_wallpaper_blur", 0f)) }
+    var wallpaperParallax by remember { mutableStateOf(preferences.getBoolean("home_wallpaper_parallax", true)) }
     val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching {
@@ -396,7 +397,16 @@ private fun FusionHome(
                         bitmap = wallpaperBitmap,
                         contentDescription = "Home screen wallpaper",
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().blur(wallpaperBlur.dp)
+                        modifier = Modifier.fillMaxSize()
+                            .blur(wallpaperBlur.dp)
+                            .graphicsLayer {
+                                if (wallpaperParallax) {
+                                    translationX = -tiltX * 18.dp.toPx()
+                                    translationY = tiltY * 18.dp.toPx()
+                                    scaleX = 1.08f
+                                    scaleY = 1.08f
+                                }
+                            }
                     )
                     Box(Modifier.fillMaxSize().background(
                         Brush.verticalGradient(listOf(
@@ -731,6 +741,25 @@ private fun FusionHome(
                                             },
                                             valueRange = 0f..20f
                                         )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                                .clickable {
+                                                    wallpaperParallax = !wallpaperParallax
+                                                    preferences.edit().putBoolean("home_wallpaper_parallax", wallpaperParallax).apply()
+                                                }.padding(vertical = 10.dp, horizontal = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text("3D PARALLAX EFFECT", color = Color.White,
+                                                    fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                Text("Move your phone to create a subtle depth effect.",
+                                                    color = Color.LightGray, fontSize = 10.sp)
+                                            }
+                                            Text(if (wallpaperParallax) "ON" else "OFF",
+                                                color = if (wallpaperParallax) NeonCyan else Color.LightGray,
+                                                fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
