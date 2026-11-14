@@ -203,6 +203,7 @@ private fun FusionHome(
     var iconSize by remember { mutableStateOf(preferences.getInt("icon_size", 76).toFloat()) }
     var homeIconSize by remember { mutableStateOf(preferences.getInt("home_icon_size", 58).toFloat()) }
     var homeGridSpacing by remember { mutableStateOf(preferences.getInt("home_grid_spacing", 12).toFloat()) }
+    var homePageCount by remember { mutableStateOf(preferences.getInt("home_page_count", 3)) }
     var widgetWidth by remember { mutableStateOf(preferences.getInt("widget_width", 280).toFloat()) }
     var widgetHeight by remember { mutableStateOf(preferences.getInt("widget_height", 150).toFloat()) }
     var showWidgetShelf by remember { mutableStateOf(preferences.getBoolean("show_widget_shelf", true)) }
@@ -427,7 +428,8 @@ private fun FusionHome(
                             homeGridSpacing = homeGridSpacing,
                             widgetWidth = widgetWidth,
                             widgetHeight = widgetHeight,
-                            showWidgetShelf = showWidgetShelf
+                            showWidgetShelf = showWidgetShelf,
+                             homePageCount = homePageCount
                         )
                     }
                     "Apps" -> {
@@ -612,7 +614,29 @@ private fun FusionHome(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text("WIDGET SPACE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonViolet.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("HOME PAGE COUNT", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("$homePageCount pages", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(
+                                        value = homePageCount.toFloat(),
+                                        onValueChange = {
+                                            homePageCount = it.toInt().coerceIn(3, 7)
+                                            preferences.edit().putInt("home_page_count", homePageCount).apply()
+                                        },
+                                        valueRange = 3f..7f,
+                                        steps = 3
+                                    )
+                                    Text("Choose how many home pages are available for your shortcuts.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Text("WIDGET SPACE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                         Text("Show or hide widgets on your home screen.", color = Color.LightGray, fontSize = 11.sp)
                                     }
                                     Button(
