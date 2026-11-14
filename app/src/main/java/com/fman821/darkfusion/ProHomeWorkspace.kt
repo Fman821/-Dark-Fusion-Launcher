@@ -84,7 +84,9 @@ fun ProHomeWorkspace(
     showAppLabels: Boolean = true,
     gridColumns: Int = 3,
     homeIconSize: Float = 58f,
-    homeGridSpacing: Float = 12f
+    homeGridSpacing: Float = 12f,
+    widgetWidth: Float = 280f,
+    widgetHeight: Float = 150f
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -212,7 +214,9 @@ fun ProHomeWorkspace(
                         manager = appWidgetManager,
                         widgetIds = widgetIds,
                         onAddWidget = onAddWidget,
-                        onRemoveWidget = onRemoveWidget
+                        onRemoveWidget = onRemoveWidget,
+                        widgetWidth = widgetWidth,
+                        widgetHeight = widgetHeight
                     )
                     Spacer(Modifier.height(10.dp))
                     Text("YOUR SHORTCUTS", color = WorkspaceCyan, fontSize = 10.sp,
