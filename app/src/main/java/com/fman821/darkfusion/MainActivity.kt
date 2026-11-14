@@ -70,6 +70,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -210,6 +211,7 @@ private fun FusionHome(
     var homeBackground by remember { mutableStateOf(preferences.getString("home_background", "Cosmic") ?: "Cosmic") }
     var homeWallpaperUri by remember { mutableStateOf(preferences.getString("home_wallpaper_uri", "") ?: "") }
     var wallpaperDim by remember { mutableStateOf(preferences.getFloat("home_wallpaper_dim", 0.62f)) }
+    var wallpaperBlur by remember { mutableStateOf(preferences.getFloat("home_wallpaper_blur", 0f)) }
     val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching {
@@ -394,7 +396,7 @@ private fun FusionHome(
                         bitmap = wallpaperBitmap,
                         contentDescription = "Home screen wallpaper",
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize().blur(wallpaperBlur.dp)
                     )
                     Box(Modifier.fillMaxSize().background(
                         Brush.verticalGradient(listOf(
@@ -718,6 +720,16 @@ private fun FusionHome(
                                                 preferences.edit().putFloat("home_wallpaper_dim", it).apply()
                                             },
                                             valueRange = 0.15f..0.85f
+                                        )
+                                        Text("WALLPAPER BLUR  ${wallpaperBlur.toInt()} dp",
+                                            color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Slider(
+                                            value = wallpaperBlur,
+                                            onValueChange = {
+                                                wallpaperBlur = it
+                                                preferences.edit().putFloat("home_wallpaper_blur", it).apply()
+                                            },
+                                            valueRange = 0f..20f
                                         )
                                     }
                                 }
