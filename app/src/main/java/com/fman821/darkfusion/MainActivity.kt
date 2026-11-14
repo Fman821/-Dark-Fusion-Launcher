@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.BitmapFactory
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -75,6 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -206,6 +208,18 @@ private fun FusionHome(
     var homeGridSpacing by remember { mutableStateOf(preferences.getInt("home_grid_spacing", 12).toFloat()) }
     var homePageCount by remember { mutableStateOf(preferences.getInt("home_page_count", 3)) }
     var homeBackground by remember { mutableStateOf(preferences.getString("home_background", "Cosmic") ?: "Cosmic") }
+    var homeWallpaperUri by remember { mutableStateOf(preferences.getString("home_wallpaper_uri", "") ?: "") }
+    val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            homeWallpaperUri = uri.toString()
+            preferences.edit().putString("home_wallpaper_uri", homeWallpaperUri).apply()
+        }
+    }
     var widgetWidth by remember { mutableStateOf(preferences.getInt("widget_width", 280).toFloat()) }
     var widgetHeight by remember { mutableStateOf(preferences.getInt("widget_height", 150).toFloat()) }
     var showWidgetShelf by remember { mutableStateOf(preferences.getBoolean("show_widget_shelf", true)) }
@@ -367,6 +381,25 @@ private fun FusionHome(
             else -> Brush.verticalGradient(listOf(Color(0xFF17132D), Color(0xFF0B1020), SpaceBlack))
         }
         Box(Modifier.fillMaxSize().background(screenBackground)) {
+            if (selectedTab == "Home" && homeWallpaperUri.isNotBlank()) {
+                val wallpaperBitmap = remember(homeWallpaperUri) {
+                    runCatching {
+                        context.contentResolver.openInputStream(android.net.Uri.parse(homeWallpaperUri))
+                            ?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+                    }.getOrNull()
+                }
+                if (wallpaperBitmap != null) {
+                    Image(
+                        bitmap = wallpaperBitmap,
+                        contentDescription = "Home screen wallpaper",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Box(Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(listOf(Color(0x99070914), Color(0xCC070914), Color(0xEE070914)))
+                    ))
+                }
+            }
             Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 26.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
@@ -646,7 +679,30 @@ private fun FusionHome(
                                             }
                                         }
                                     }
-                                    Text("Choose the look of your home screen background.", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(
+                                            onClick = { wallpaperPicker.launch(arrayOf("image/*")) },
+                                            modifier = Modifier.weight(1f),
+                                            colors = ButtonDefaults.buttonColors(containerColor = NeonViolet),
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 9.dp)
+                                        ) { Text("Choose Photo", fontSize = 10.sp) }
+                                        if (homeWallpaperUri.isNotBlank()) {
+                                            Button(
+                                                onClick = {
+                                                    homeWallpaperUri = ""
+                                                    preferences.edit().remove("home_wallpaper_uri").apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF273149)),
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 9.dp)
+                                            ) { Text("Remove Photo", fontSize = 10.sp) }
+                                        }
+                                    }
+                                    Text(
+                                        if (homeWallpaperUri.isNotBlank()) "Your photo is active. The dark overlay keeps icons readable."
+                                        else "Choose a photo from your gallery, or keep one of the built-in themes.",
+                                        color = Color.LightGray, fontSize = 11.sp
+                                    )
                                 }
                             }
 
