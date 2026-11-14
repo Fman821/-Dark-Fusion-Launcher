@@ -209,6 +209,7 @@ private fun FusionHome(
     var homePageCount by remember { mutableStateOf(preferences.getInt("home_page_count", 3)) }
     var homeBackground by remember { mutableStateOf(preferences.getString("home_background", "Cosmic") ?: "Cosmic") }
     var homeWallpaperUri by remember { mutableStateOf(preferences.getString("home_wallpaper_uri", "") ?: "") }
+    var wallpaperDim by remember { mutableStateOf(preferences.getFloat("home_wallpaper_dim", 0.62f)) }
     val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching {
@@ -396,7 +397,11 @@ private fun FusionHome(
                         modifier = Modifier.fillMaxSize()
                     )
                     Box(Modifier.fillMaxSize().background(
-                        Brush.verticalGradient(listOf(Color(0x99070914), Color(0xCC070914), Color(0xEE070914)))
+                        Brush.verticalGradient(listOf(
+                            Color(0xFF070914).copy(alpha = (wallpaperDim * 0.65f).coerceIn(0f, 1f)),
+                            Color(0xFF070914).copy(alpha = wallpaperDim.coerceIn(0f, 1f)),
+                            Color(0xFF070914).copy(alpha = (wallpaperDim + 0.18f).coerceIn(0f, 1f))
+                        ))
                     ))
                 }
             }
@@ -703,6 +708,18 @@ private fun FusionHome(
                                         else "Choose a photo from your gallery, or keep one of the built-in themes.",
                                         color = Color.LightGray, fontSize = 11.sp
                                     )
+                                    if (homeWallpaperUri.isNotBlank()) {
+                                        Text("WALLPAPER DARKNESS  ${(wallpaperDim * 100).toInt()}%",
+                                            color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Slider(
+                                            value = wallpaperDim,
+                                            onValueChange = {
+                                                wallpaperDim = it
+                                                preferences.edit().putFloat("home_wallpaper_dim", it).apply()
+                                            },
+                                            valueRange = 0.15f..0.85f
+                                        )
+                                    }
                                 }
                             }
 
