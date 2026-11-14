@@ -93,6 +93,7 @@ fun ProHomeWorkspace(
     gridColumns: Int = 3,
     homeIconSize: Float = 58f,
     homeIconShape: String = "Circle",
+    homeLabelSize: Float = 10f,
     homeGridSpacing: Float = 12f,
     widgetWidth: Float = 280f,
     widgetHeight: Float = 150f,
@@ -322,7 +323,7 @@ fun ProHomeWorkspace(
                     Text("YOUR SHORTCUTS", color = WorkspaceCyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(8.dp))
-                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize, homeGridSpacing, homeIconShape)
+                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize, homeGridSpacing, homeIconShape, homeLabelSize)
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
@@ -381,7 +382,7 @@ fun ProHomeWorkspace(
                             iconPackIconId = iconPackIcons[app.packageName],
                             size = (homeIconSize * 0.52f).toInt().coerceIn(22, 40)
                         )
-                        if (showAppLabels) Text(app.label, color = Color.White, fontSize = 8.sp, maxLines = 1)
+                        if (showAppLabels) Text(app.label, color = Color.White, fontSize = homeLabelSize.coerceIn(8f, 14f).sp, maxLines = 1)
                     }
                 }
                 if (dockApps.isEmpty()) {
@@ -562,7 +563,8 @@ private fun WorkspaceAppGrid(
     gridColumns: Int,
     homeIconSize: Float,
     homeGridSpacing: Float,
-    homeIconShape: String
+    homeIconShape: String,
+    homeLabelSize: Float
 ) {
     val gridState = rememberLazyGridState()
     var draggingPackage by remember { mutableStateOf<String?>(null) }
