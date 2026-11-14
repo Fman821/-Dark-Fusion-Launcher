@@ -233,6 +233,8 @@ private fun FusionHome(
     var showAppLabels by remember { mutableStateOf(preferences.getBoolean("show_app_labels", true)) }
     var homeLabelSize by remember { mutableStateOf(preferences.getInt("home_label_size", 10).toFloat()) }
     var homeLabelColor by remember { mutableStateOf(preferences.getString("home_label_color", "White") ?: "White") }
+    var homeIconGlow by remember { mutableStateOf(preferences.getBoolean("home_icon_glow", true)) }
+    var homeIconShadow by remember { mutableStateOf(preferences.getInt("home_icon_shadow", 10).toFloat()) }
     var floatingMotion by remember { mutableStateOf(preferences.getBoolean("floating_motion", true)) }
     var dockCount by remember { mutableStateOf(preferences.getInt("dock_count", 4)) }
     var dockVisible by remember { mutableStateOf(preferences.getBoolean("dock_visible", true)) }
@@ -500,6 +502,8 @@ private fun FusionHome(
                             showAppLabels = showAppLabels,
                             homeLabelSize = homeLabelSize,
                             homeLabelColor = homeLabelColor,
+                            homeIconGlow = homeIconGlow,
+                            homeIconShadow = homeIconShadow,
                             gridColumns = gridColumns,
                             homeIconSize = homeIconSize,
                             homeIconShape = homeIconShape,
@@ -985,6 +989,38 @@ private fun FusionHome(
                                         }
                                     }
                                     Text("Choose the color of app names on your Home screen.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                    Text("ICON SHADOW & GLOW", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                        Text("Neon glow", color = Color.LightGray, fontSize = 12.sp)
+                                        Button(
+                                            onClick = {
+                                                homeIconGlow = !homeIconGlow
+                                                preferences.edit().putBoolean("home_icon_glow", homeIconGlow).apply()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = if (homeIconGlow) NeonCyan else Color(0xFF273149))
+                                        ) { Text(if (homeIconGlow) "ON" else "OFF") }
+                                    }
+                                    Text("${homeIconShadow.toInt()}", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(
+                                        value = homeIconShadow,
+                                        onValueChange = {
+                                            homeIconShadow = it
+                                            preferences.edit().putInt("home_icon_shadow", it.toInt()).apply()
+                                        },
+                                        valueRange = 0f..20f,
+                                        steps = 19
+                                    )
+                                    Text("Add depth to Home screen icons.", color = Color.LightGray, fontSize = 11.sp)
                                 }
                             }
 
