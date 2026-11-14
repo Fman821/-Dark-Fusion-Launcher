@@ -204,6 +204,7 @@ private fun FusionHome(
     var homeIconSize by remember { mutableStateOf(preferences.getInt("home_icon_size", 58).toFloat()) }
     var homeGridSpacing by remember { mutableStateOf(preferences.getInt("home_grid_spacing", 12).toFloat()) }
     var homePageCount by remember { mutableStateOf(preferences.getInt("home_page_count", 3)) }
+    var homeBackground by remember { mutableStateOf(preferences.getString("home_background", "Cosmic") ?: "Cosmic") }
     var widgetWidth by remember { mutableStateOf(preferences.getInt("widget_width", 280).toFloat()) }
     var widgetHeight by remember { mutableStateOf(preferences.getInt("widget_height", 150).toFloat()) }
     var showWidgetShelf by remember { mutableStateOf(preferences.getBoolean("show_widget_shelf", true)) }
@@ -353,6 +354,11 @@ private fun FusionHome(
     Surface(Modifier.fillMaxSize(), color = SpaceBlack) {
         val screenBackground = when (selectedTab) {
             "Apps" -> when (drawerBackground) {
+                "Midnight" -> Brush.verticalGradient(listOf(Color(0xFF101827), Color(0xFF070B13), SpaceBlack))
+                "Aurora" -> Brush.linearGradient(listOf(Color(0xFF123B45), Color(0xFF17132D), SpaceBlack))
+                else -> Brush.verticalGradient(listOf(Color(0xFF17132D), Color(0xFF0B1020), SpaceBlack))
+            }
+            "Home" -> when (homeBackground) {
                 "Midnight" -> Brush.verticalGradient(listOf(Color(0xFF101827), Color(0xFF070B13), SpaceBlack))
                 "Aurora" -> Brush.linearGradient(listOf(Color(0xFF123B45), Color(0xFF17132D), SpaceBlack))
                 else -> Brush.verticalGradient(listOf(Color(0xFF17132D), Color(0xFF0B1020), SpaceBlack))
@@ -615,6 +621,35 @@ private fun FusionHome(
                                 ) {
                                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("HOME BACKGROUND", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("Cosmic", "Midnight", "Aurora").forEach { style ->
+                                            Button(
+                                                onClick = {
+                                                    homeBackground = style
+                                                    preferences.edit().putString("home_background", style).apply()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (homeBackground == style) NeonCyan else SpacePanel
+                                                ),
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                                            ) {
+                                                Text(style, color = if (homeBackground == style) SpaceBlack else Color.White, fontSize = 9.sp)
+                                            }
+                                        }
+                                    }
+                                    Text("Choose the look of your home screen background.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 color = SpacePanel,
                                 shape = RoundedCornerShape(20.dp),
