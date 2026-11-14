@@ -76,6 +76,7 @@ fun ProHomeWorkspace(
     widgetIds: List<Int>,
     onAddWidget: () -> Unit,
     onRemoveWidget: (Int) -> Unit,
+    onMoveWidget: (Int, Int) -> Unit,
     onDoubleTapHome: () -> Unit,
     onSwipeUpHome: () -> Unit = {},
     onSwipeDownHome: () -> Unit = {},
@@ -215,6 +216,7 @@ fun ProHomeWorkspace(
                         widgetIds = widgetIds,
                         onAddWidget = onAddWidget,
                         onRemoveWidget = onRemoveWidget,
+                        onMoveWidget = onMoveWidget,
                         widgetWidth = widgetWidth,
                         widgetHeight = widgetHeight
                     )
