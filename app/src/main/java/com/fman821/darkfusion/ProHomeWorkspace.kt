@@ -121,11 +121,16 @@ fun ProHomeWorkspace(
         favoriteApps.any { it.packageName == app.packageName }
     }).take(dockCount.coerceIn(3, 6))
     var clock by remember { mutableStateOf(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())) }
+    var currentDate by remember {
+        mutableStateOf(SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(Date()))
+    }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         while (true) {
-            clock = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-            kotlinx.coroutines.delay(1000)
+            val now = Date()
+            clock = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+            currentDate = SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(now)
+            kotlinx.coroutines.delay(30_000)
         }
     }
 
@@ -162,7 +167,11 @@ fun ProHomeWorkspace(
                 Text("DARK FUSION", color = Color.White, fontSize = 19.sp,
                     fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
             }
-            Text(clock, color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+            Column(horizontalAlignment = Alignment.End) {
+                Text(clock, color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                Text(currentDate, color = WorkspaceCyan, fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium)
+            }
         }
 
         Surface(
