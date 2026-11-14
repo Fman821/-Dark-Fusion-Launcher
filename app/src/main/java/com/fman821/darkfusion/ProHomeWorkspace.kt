@@ -94,6 +94,7 @@ fun ProHomeWorkspace(
     homeIconSize: Float = 58f,
     homeIconShape: String = "Circle",
     homeLabelSize: Float = 10f,
+    homeLabelColor: String = "White",
     homeGridSpacing: Float = 12f,
     widgetWidth: Float = 280f,
     widgetHeight: Float = 150f,
@@ -323,7 +324,7 @@ fun ProHomeWorkspace(
                     Text("YOUR SHORTCUTS", color = WorkspaceCyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(8.dp))
-                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize, homeGridSpacing, homeIconShape, homeLabelSize)
+                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize, homeGridSpacing, homeIconShape, homeLabelSize, homeLabelColor)
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
@@ -382,7 +383,7 @@ fun ProHomeWorkspace(
                             iconPackIconId = iconPackIcons[app.packageName],
                             size = (homeIconSize * 0.52f).toInt().coerceIn(22, 40)
                         )
-                        if (showAppLabels) Text(app.label, color = Color.White, fontSize = homeLabelSize.coerceIn(8f, 14f).sp, maxLines = 1)
+                        if (showAppLabels) Text(app.label, color = workspaceLabelColor(homeLabelColor), fontSize = homeLabelSize.coerceIn(8f, 14f).sp, maxLines = 1)
                     }
                 }
                 if (dockApps.isEmpty()) {
@@ -553,6 +554,14 @@ fun ProHomeWorkspace(
 }
 
 @Composable
+private fun workspaceLabelColor(name: String): Color = when (name) {
+    "Cyan" -> Color(0xFF63E6FF)
+    "Gold" -> Color(0xFFFFD166)
+    "Pink" -> Color(0xFFFF75C3)
+    "Violet" -> Color(0xFFB69CFF)
+    else -> Color.White
+}
+
 private fun WorkspaceAppGrid(
     apps: List<LauncherApp>,
     onLaunchApp: (String) -> Unit,
@@ -564,7 +573,8 @@ private fun WorkspaceAppGrid(
     homeIconSize: Float,
     homeGridSpacing: Float,
     homeIconShape: String,
-    homeLabelSize: Float
+    homeLabelSize: Float,
+    homeLabelColor: String
 ) {
     val gridState = rememberLazyGridState()
     var draggingPackage by remember { mutableStateOf<String?>(null) }
