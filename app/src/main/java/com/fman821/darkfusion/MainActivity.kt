@@ -208,6 +208,7 @@ private fun FusionHome(
     var homeIconSize by remember { mutableStateOf(preferences.getInt("home_icon_size", 58).toFloat()) }
     var homeGridSpacing by remember { mutableStateOf(preferences.getInt("home_grid_spacing", 12).toFloat()) }
     var homePageCount by remember { mutableStateOf(preferences.getInt("home_page_count", 3)) }
+    var homePageEffect by remember { mutableStateOf(preferences.getString("home_page_effect", "Depth") ?: "Depth") }
     var homeBackground by remember { mutableStateOf(preferences.getString("home_background", "Cosmic") ?: "Cosmic") }
     var homeWallpaperUri by remember { mutableStateOf(preferences.getString("home_wallpaper_uri", "") ?: "") }
     var wallpaperDim by remember { mutableStateOf(preferences.getFloat("home_wallpaper_dim", 0.62f)) }
@@ -486,7 +487,8 @@ private fun FusionHome(
                             widgetWidth = widgetWidth,
                             widgetHeight = widgetHeight,
                             showWidgetShelf = showWidgetShelf,
-                             homePageCount = homePageCount
+                             homePageCount = homePageCount,
+                            homePageEffect = homePageEffect
                         )
                     }
                     "Apps" -> {
@@ -784,7 +786,36 @@ private fun FusionHome(
                                     )
                                     Text("Choose how many home pages are available for your shortcuts.", color = Color.LightGray, fontSize = 11.sp)
                                 }
+             
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("PAGE TRANSITION", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Choose how your home pages move when you swipe.", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("Slide", "Depth", "Zoom", "Fade").forEach { effect ->
+                                            Button(
+                                                onClick = {
+                                                    homePageEffect = effect
+                                                    preferences.edit().putString("home_page_effect", effect).apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (homePageEffect == effect) NeonCyan else Color(0xFF273149)
+                                                )
+                                            ) {
+                                                Text(effect, color = if (homePageEffect == effect) SpaceBlack else Color.White, fontSize = 9.sp)
+                                            }
+                                        }
+                                    }
+                                }
                             }
+               }
 
                             Text("WIDGET SPACE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                         Text("Show or hide widgets on your home screen.", color = Color.LightGray, fontSize = 11.sp)
