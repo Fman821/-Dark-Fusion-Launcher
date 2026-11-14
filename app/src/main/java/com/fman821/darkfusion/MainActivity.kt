@@ -1,9 +1,12 @@
 package com.fman821.darkfusion
 
+import android.appwidget.AppWidgetHost
+import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.BitmapFactory
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -11,10 +14,14 @@ import android.hardware.SensorManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.horizontalScroll
@@ -22,6 +29,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,11 +45,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -59,12 +70,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -89,6 +102,18 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private var accelerometer: Sensor? = null
     private var deviceTiltX by mutableStateOf(0f)
     private var deviceTiltY by mutableStateOf(0f)
+    private lateinit var appWidgetHost: AppWidgetHost
+    private lateinit var appWidgetManager: AppWidgetManager
+
+    override fun onStart() {
+        super.onStart()
+        if (::appWidgetHost.isInitialized) runCatching { appWidgetHost.startListening() }
+    }
+
+    override fun onStop() {
+        if (::appWidgetHost.isInitialized) runCatching { appWidgetHost.stopListening() }
+        super.onStop()
+    }
 
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type != Sensor.TYPE_ACCELEROMETER) return
@@ -126,8 +151,11 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        appWidgetHost = AppWidgetHost(this, 1024)
+        appWidgetManager = AppWidgetManager.getInstance(this)
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         val installedApps = loadApps()
+        val installedIconPacks = IconPackManager.discover(this)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(
                 background = SpaceBlack,
@@ -137,10 +165,19 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             )) {
                 FusionHome(
                     apps = installedApps,
+                    iconPacks = installedIconPacks,
                     tiltX = deviceTiltX,
                     tiltY = deviceTiltY,
+                    appWidgetHost = appWidgetHost,
+                    appWidgetManager = appWidgetManager,
                     onLaunchApp = { packageName ->
                         packageManager.getLaunchIntentForPackage(packageName)?.let(::startActivity)
+                    },
+                    onOpenAppInfo = { packageName ->
+                        runCatching {
+                            startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                android.net.Uri.parse("package:$packageName")))
+                        }
                     },
                     onChooseHome = {
                         startActivity(Intent(android.provider.Settings.ACTION_HOME_SETTINGS))
@@ -154,9 +191,13 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 @Composable
 private fun FusionHome(
     apps: List<LauncherApp>,
+    iconPacks: List<IconPackInfo>,
     tiltX: Float,
     tiltY: Float,
+    appWidgetHost: AppWidgetHost,
+    appWidgetManager: AppWidgetManager,
     onLaunchApp: (String) -> Unit,
+    onOpenAppInfo: (String) -> Unit,
     onChooseHome: () -> Unit
 ) {
     var search by remember { mutableStateOf("") }
@@ -164,8 +205,124 @@ private fun FusionHome(
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("dark_fusion_settings", android.content.Context.MODE_PRIVATE) }
     var iconSize by remember { mutableStateOf(preferences.getInt("icon_size", 76).toFloat()) }
+    var homeIconSize by remember { mutableStateOf(preferences.getInt("home_icon_size", 58).toFloat()) }
+    var homeIconShape by remember { mutableStateOf(preferences.getString("home_icon_shape", "Circle") ?: "Circle") }
+    var homeGridSpacing by remember { mutableStateOf(preferences.getInt("home_grid_spacing", 12).toFloat()) }
+    var homePageCount by remember { mutableStateOf(preferences.getInt("home_page_count", 3)) }
+    var homePageEffect by remember { mutableStateOf(preferences.getString("home_page_effect", "Depth") ?: "Depth") }
+    var homeBackground by remember { mutableStateOf(preferences.getString("home_background", "Cosmic") ?: "Cosmic") }
+    var homeWallpaperUri by remember { mutableStateOf(preferences.getString("home_wallpaper_uri", "") ?: "") }
+    var wallpaperDim by remember { mutableStateOf(preferences.getFloat("home_wallpaper_dim", 0.62f)) }
+    var wallpaperBlur by remember { mutableStateOf(preferences.getFloat("home_wallpaper_blur", 0f)) }
+    var wallpaperParallax by remember { mutableStateOf(preferences.getBoolean("home_wallpaper_parallax", true)) }
+    val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            homeWallpaperUri = uri.toString()
+            preferences.edit().putString("home_wallpaper_uri", homeWallpaperUri).apply()
+        }
+    }
+    var widgetWidth by remember { mutableStateOf(preferences.getInt("widget_width", 280).toFloat()) }
+    var widgetHeight by remember { mutableStateOf(preferences.getInt("widget_height", 150).toFloat()) }
+    var showWidgetShelf by remember { mutableStateOf(preferences.getBoolean("show_widget_shelf", true)) }
     var gridColumns by remember { mutableStateOf(preferences.getInt("grid_columns", 3)) }
+    var showAppLabels by remember { mutableStateOf(preferences.getBoolean("show_app_labels", true)) }
+    var homeLabelSize by remember { mutableStateOf(preferences.getInt("home_label_size", 10).toFloat()) }
+    var homeLabelColor by remember { mutableStateOf(preferences.getString("home_label_color", "White") ?: "White") }
+    var homeIconGlow by remember { mutableStateOf(preferences.getBoolean("home_icon_glow", true)) }
+    var homeIconShadow by remember { mutableStateOf(preferences.getInt("home_icon_shadow", 10).toFloat()) }
     var floatingMotion by remember { mutableStateOf(preferences.getBoolean("floating_motion", true)) }
+    var dockCount by remember { mutableStateOf(preferences.getInt("dock_count", 4)) }
+    var dockVisible by remember { mutableStateOf(preferences.getBoolean("dock_visible", true)) }
+    var dockOpacity by remember { mutableStateOf(preferences.getFloat("dock_opacity", 0.92f)) }
+    var doubleTapAction by remember { mutableStateOf(preferences.getString("gesture_double_tap", "Apps") ?: "Apps") }
+    var swipeUpAction by remember { mutableStateOf(preferences.getString("gesture_swipe_up", "Apps") ?: "Apps") }
+    var swipeDownAction by remember { mutableStateOf(preferences.getString("gesture_swipe_down", "Customize") ?: "Customize") }
+    var drawerIconShape by remember { mutableStateOf(preferences.getString("drawer_icon_shape", "Circle") ?: "Circle") }
+    var drawerBackground by remember { mutableStateOf(preferences.getString("drawer_background", "Cosmic") ?: "Cosmic") }
+    var drawerAnimation by remember { mutableStateOf(preferences.getString("drawer_animation", "Gentle") ?: "Gentle") }
+    var appSort by remember { mutableStateOf(preferences.getString("app_sort", "Name") ?: "Name") }
+    var selectedIconPack by remember { mutableStateOf(preferences.getString("icon_pack_package", "") ?: "") }
+    val activeIconPack = iconPacks.firstOrNull { it.packageName == selectedIconPack }
+    var folderNameInput by remember { mutableStateOf("") }
+    var folderAppPackage by remember { mutableStateOf("") }
+    var customFolders by remember {
+        mutableStateOf(
+            preferences.getString("custom_app_folders", "").orEmpty()
+                .split(";").filter { it.contains("=") }.associate { entry ->
+                    val parts = entry.split("=", limit = 2)
+                    parts[0] to parts[1].split(",").filter { it.isNotBlank() }.toSet()
+                }
+        )
+    }
+    var homeWidgetIds by remember {
+        mutableStateOf(preferences.getString("home_widget_ids", "").orEmpty()
+            .split(",").mapNotNull { it.toIntOrNull() })
+    }
+    var pendingWidgetId by remember { mutableStateOf(AppWidgetManager.INVALID_APPWIDGET_ID) }
+    fun saveHomeWidget(id: Int) {
+        homeWidgetIds = (homeWidgetIds + id).distinct()
+        preferences.edit().putString("home_widget_ids", homeWidgetIds.joinToString(",")).apply()
+    }
+    val widgetConfigureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK && pendingWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            saveHomeWidget(pendingWidgetId)
+        } else if (pendingWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+        }
+        pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+    }
+    val widgetPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val pickedId = result.data?.getIntExtra(
+            AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID
+        ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
+        if (result.resultCode == android.app.Activity.RESULT_OK && pickedId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            pendingWidgetId = pickedId
+            val provider = appWidgetManager.getAppWidgetInfo(pickedId)
+            if (provider?.configure != null) {
+                val configureIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
+                    .setComponent(provider.configure)
+                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pickedId)
+                widgetConfigureLauncher.launch(configureIntent)
+            } else {
+                saveHomeWidget(pickedId)
+                pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+            }
+        } else if (pendingWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+            pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+        }
+    }
+    fun openWidgetPicker() {
+        val newId = appWidgetHost.allocateAppWidgetId()
+        pendingWidgetId = newId
+        val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, newId)
+        widgetPickerLauncher.launch(pickIntent)
+    }
+    fun removeHomeWidget(id: Int) {
+        homeWidgetIds = homeWidgetIds.filterNot { it == id }
+        preferences.edit().putString("home_widget_ids", homeWidgetIds.joinToString(",")).apply()
+        appWidgetHost.deleteAppWidgetId(id)
+    }
+    fun moveHomeWidget(id: Int, direction: Int) {
+        val current = homeWidgetIds.indexOf(id)
+        val target = current + direction
+        if (current < 0 || target !in homeWidgetIds.indices) return
+        val reordered = homeWidgetIds.toMutableList()
+        val item = reordered.removeAt(current)
+        reordered.add(target, item)
+        homeWidgetIds = reordered
+        preferences.edit().putString("home_widget_ids", reordered.joinToString(",")).apply()
+    }
     var favorites by remember {
         mutableStateOf(preferences.getStringSet("favorite_apps", emptySet())?.toSet() ?: emptySet())
     }
@@ -184,14 +341,29 @@ private fun FusionHome(
             else -> "Other"
         }
     }
-    val categories = listOf("All", "Favorites", "Communication", "Social", "Media", "Games", "Tools", "Other")
-    val filteredApps = apps.filter { app ->
-        !hiddenApps.contains(app.packageName) && app.label.contains(search, ignoreCase = true) &&
+    val categories = listOf("All", "Favorites", "Hidden", "Communication", "Social", "Media", "Games", "Tools", "Other") + customFolders.keys
+    val sortedApps = when (appSort) {
+        "Reverse" -> apps.sortedByDescending { it.label.lowercase() }
+        "Favorites first" -> apps.sortedWith(compareByDescending<LauncherApp> { favorites.contains(it.packageName) }.thenBy { it.label.lowercase() })
+        else -> apps.sortedBy { it.label.lowercase() }
+    }
+    val filteredApps = sortedApps.filter { app ->
+        (if (selectedCategory == "Hidden") hiddenApps.contains(app.packageName) else !hiddenApps.contains(app.packageName)) &&
+            app.label.contains(search, ignoreCase = true) &&
             when (selectedCategory) {
                 "All" -> true
+                "Hidden" -> true
                 "Favorites" -> favorites.contains(app.packageName)
+                in customFolders -> customFolders[selectedCategory]?.contains(app.packageName) == true
                 else -> categoryFor(app) == selectedCategory
             }
+    }
+    fun saveCustomFolders(updated: Map<String, Set<String>>) {
+        customFolders = updated
+        val encoded = updated.entries.joinToString(";") { (name, packages) ->
+            "$name=${packages.joinToString(",")}"
+        }
+        preferences.edit().putString("custom_app_folders", encoded).apply()
     }
     fun toggleFavorite(packageName: String) {
         val updated = favorites.toMutableSet()
@@ -207,13 +379,52 @@ private fun FusionHome(
     }
 
     Surface(Modifier.fillMaxSize(), color = SpaceBlack) {
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF17132D), Color(0xFF0B1020), SpaceBlack)
-                )
-            )
-        ) {
+        val screenBackground = when (selectedTab) {
+            "Apps" -> when (drawerBackground) {
+                "Midnight" -> Brush.verticalGradient(listOf(Color(0xFF101827), Color(0xFF070B13), SpaceBlack))
+                "Aurora" -> Brush.linearGradient(listOf(Color(0xFF123B45), Color(0xFF17132D), SpaceBlack))
+                else -> Brush.verticalGradient(listOf(Color(0xFF17132D), Color(0xFF0B1020), SpaceBlack))
+            }
+            "Home" -> when (homeBackground) {
+                "Midnight" -> Brush.verticalGradient(listOf(Color(0xFF101827), Color(0xFF070B13), SpaceBlack))
+                "Aurora" -> Brush.linearGradient(listOf(Color(0xFF123B45), Color(0xFF17132D), SpaceBlack))
+                else -> Brush.verticalGradient(listOf(Color(0xFF17132D), Color(0xFF0B1020), SpaceBlack))
+            }
+            else -> Brush.verticalGradient(listOf(Color(0xFF17132D), Color(0xFF0B1020), SpaceBlack))
+        }
+        Box(Modifier.fillMaxSize().background(screenBackground)) {
+            if (selectedTab == "Home" && homeWallpaperUri.isNotBlank()) {
+                val wallpaperBitmap = remember(homeWallpaperUri) {
+                    runCatching {
+                        context.contentResolver.openInputStream(android.net.Uri.parse(homeWallpaperUri))
+                            ?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+                    }.getOrNull()
+                }
+                if (wallpaperBitmap != null) {
+                    Image(
+                        bitmap = wallpaperBitmap,
+                        contentDescription = "Home screen wallpaper",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                            .blur(wallpaperBlur.dp)
+                            .graphicsLayer {
+                                if (wallpaperParallax) {
+                                    translationX = -tiltX * 18.dp.toPx()
+                                    translationY = tiltY * 18.dp.toPx()
+                                    scaleX = 1.08f
+                                    scaleY = 1.08f
+                                }
+                            }
+                    )
+                    Box(Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(listOf(
+                            Color(0xFF070914).copy(alpha = (wallpaperDim * 0.65f).coerceIn(0f, 1f)),
+                            Color(0xFF070914).copy(alpha = wallpaperDim.coerceIn(0f, 1f)),
+                            Color(0xFF070914).copy(alpha = (wallpaperDim + 0.18f).coerceIn(0f, 1f))
+                        ))
+                    ))
+                }
+            }
             Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 26.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
@@ -242,7 +453,7 @@ private fun FusionHome(
 
                 when (selectedTab) {
                     "Home" -> {
-                        HomeDashboard(
+                        ProHomeWorkspace(
                             apps = apps,
                             onLaunchApp = onLaunchApp,
                             onChooseHome = onChooseHome,
@@ -255,7 +466,53 @@ private fun FusionHome(
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALENDAR))
                                 }
-                            }
+                            },
+                            dockCount = dockCount,
+                            dockVisible = dockVisible,
+                            dockOpacity = dockOpacity,
+                            appWidgetHost = appWidgetHost,
+                            appWidgetManager = appWidgetManager,
+                            widgetIds = homeWidgetIds,
+                            onAddWidget = ::openWidgetPicker,
+                            onRemoveWidget = ::removeHomeWidget,
+                            onMoveWidget = ::moveHomeWidget,
+                            onDoubleTapHome = {
+                                when (doubleTapAction) {
+                                    "Customize" -> selectedTab = "Customize"
+                                    "Home" -> selectedTab = "Home"
+                                    else -> selectedTab = "Apps"
+                                }
+                            },
+                            onSwipeUpHome = {
+                                selectedTab = when (swipeUpAction) {
+                                    "Home" -> "Home"
+                                    "Customize" -> "Customize"
+                                    else -> "Apps"
+                                }
+                            },
+                            onSwipeDownHome = {
+                                selectedTab = when (swipeDownAction) {
+                                    "Home" -> "Home"
+                                    "Apps" -> "Apps"
+                                    else -> "Customize"
+                                }
+                            },
+                            iconPackPackage = activeIconPack?.packageName,
+                            iconPackIcons = activeIconPack?.appIcons.orEmpty(),
+                            showAppLabels = showAppLabels,
+                            homeLabelSize = homeLabelSize,
+                            homeLabelColor = homeLabelColor,
+                            homeIconGlow = homeIconGlow,
+                            homeIconShadow = homeIconShadow,
+                            gridColumns = gridColumns,
+                            homeIconSize = homeIconSize,
+                            homeIconShape = homeIconShape,
+                            homeGridSpacing = homeGridSpacing,
+                            widgetWidth = widgetWidth,
+                            widgetHeight = widgetHeight,
+                            showWidgetShelf = showWidgetShelf,
+                             homePageCount = homePageCount,
+                            homePageEffect = homePageEffect
                         )
                     }
                     "Apps" -> {
@@ -270,6 +527,14 @@ private fun FusionHome(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             label = { Text("Search your universe") },
+                            placeholder = { Text("Find an app...", color = Color.Gray) },
+                            trailingIcon = {
+                                if (search.isNotEmpty()) {
+                                    TextButton(onClick = { search = "" }) {
+                                        Text("CLEAR", color = NeonCyan, fontSize = 9.sp)
+                                    }
+                                }
+                            },
                             shape = RoundedCornerShape(18.dp)
                         )
                         Spacer(Modifier.height(12.dp))
@@ -294,24 +559,56 @@ private fun FusionHome(
                             color = NeonPink, fontSize = 10.sp, letterSpacing = 1.2.sp
                         )
                         Spacer(Modifier.height(8.dp))
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(gridColumns),
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(18.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            itemsIndexed(filteredApps, key = { _, app -> app.packageName }) { index, app ->
-                                FloatingAppIcon(
-                                    app = app,
-                                    index = index,
-                                    iconSize = iconSize.dp,
-                                    floatingMotion = floatingMotion,
-                                    tiltX = tiltX,
-                                    tiltY = tiltY,
-                                    isFavorite = favorites.contains(app.packageName),
-                                    onToggleFavorite = { toggleFavorite(app.packageName) },
-                                    onClick = { onLaunchApp(app.packageName) }
-                                )
+                        if (filteredApps.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("✧", color = NeonViolet, fontSize = 42.sp)
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        if (search.isNotBlank()) "No matching apps" else "This space is empty",
+                                        color = Color.White,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(Modifier.height(5.dp))
+                                    Text(
+                                        if (search.isNotBlank()) "Try another app name or clear your search." else "Apps in this category will appear here.",
+                                        color = Color.LightGray,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(gridColumns),
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(18.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                itemsIndexed(filteredApps, key = { _, app -> app.packageName }) { index, app ->
+                                    FloatingAppIcon(
+                                        app = app,
+                                        index = index,
+                                        iconSize = iconSize.dp,
+                                        floatingMotion = floatingMotion,
+                                        iconShape = drawerIconShape,
+                                        animationStyle = drawerAnimation,
+                                        iconPackPackage = activeIconPack?.packageName,
+                                        iconPackIconId = activeIconPack?.appIcons?.get(app.packageName),
+                                        showLabel = showAppLabels,
+                                        tiltX = tiltX,
+                                        tiltY = tiltY,
+                                        isFavorite = favorites.contains(app.packageName),
+                                        isHidden = hiddenApps.contains(app.packageName),
+                                        onToggleFavorite = { toggleFavorite(app.packageName) },
+                                        onToggleHidden = { toggleHidden(app.packageName) },
+                                        onOpenAppInfo = { onOpenAppInfo(app.packageName) },
+                                        onClick = { onLaunchApp(app.packageName) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -350,6 +647,387 @@ private fun FusionHome(
                                 modifier = Modifier.fillMaxWidth(),
                                 color = SpacePanel,
                                 shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("HOME ICON SIZE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("${homeIconSize.toInt()} dp", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(
+                                        value = homeIconSize,
+                                        onValueChange = {
+                                            homeIconSize = it
+                                            preferences.edit().putInt("home_icon_size", it.toInt()).apply()
+                                        },
+                                        valueRange = 44f..76f
+                                    )
+                                    Text("Change shortcut icon size on your home pages. This setting is separate from the app drawer.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("HOME ICON SHAPE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                        listOf("Circle", "Rounded", "Square").forEach { shape ->
+                                            Button(
+                                                onClick = {
+                                                    homeIconShape = shape
+                                                    preferences.edit().putString("home_icon_shape", shape).apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (homeIconShape == shape) NeonCyan else Color(0xFF273149)
+                                                )
+                                            ) {
+                                                Text(shape, color = if (homeIconShape == shape) SpaceBlack else Color.White, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                    Text("Choose the shape behind your home screen app icons.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonViolet.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("HOME GRID SPACING", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("${homeGridSpacing.toInt()} dp", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(
+                                        value = homeGridSpacing,
+                                        onValueChange = {
+                                            homeGridSpacing = it
+                                            preferences.edit().putInt("home_grid_spacing", it.toInt()).apply()
+                                        },
+                                        valueRange = 4f..20f
+                                    )
+                                    Text("Adjust the space between home screen app icons.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("HOME BACKGROUND", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("Cosmic", "Midnight", "Aurora").forEach { style ->
+                                            Button(
+                                                onClick = {
+                                                    homeBackground = style
+                                                    preferences.edit().putString("home_background", style).apply()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (homeBackground == style) NeonCyan else SpacePanel
+                                                ),
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                                            ) {
+                                                Text(style, color = if (homeBackground == style) SpaceBlack else Color.White, fontSize = 9.sp)
+                                            }
+                                        }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(
+                                            onClick = { wallpaperPicker.launch(arrayOf("image/*")) },
+                                            modifier = Modifier.weight(1f),
+                                            colors = ButtonDefaults.buttonColors(containerColor = NeonViolet),
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 9.dp)
+                                        ) { Text("Choose Photo", fontSize = 10.sp) }
+                                        if (homeWallpaperUri.isNotBlank()) {
+                                            Button(
+                                                onClick = {
+                                                    homeWallpaperUri = ""
+                                                    preferences.edit().remove("home_wallpaper_uri").apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF273149)),
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 9.dp)
+                                            ) { Text("Remove Photo", fontSize = 10.sp) }
+                                        }
+                                    }
+                                    Text(
+                                        if (homeWallpaperUri.isNotBlank()) "Your photo is active. The dark overlay keeps icons readable."
+                                        else "Choose a photo from your gallery, or keep one of the built-in themes.",
+                                        color = Color.LightGray, fontSize = 11.sp
+                                    )
+                                    if (homeWallpaperUri.isNotBlank()) {
+                                        Text("WALLPAPER DARKNESS  ${(wallpaperDim * 100).toInt()}%",
+                                            color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Slider(
+                                            value = wallpaperDim,
+                                            onValueChange = {
+                                                wallpaperDim = it
+                                                preferences.edit().putFloat("home_wallpaper_dim", it).apply()
+                                            },
+                                            valueRange = 0.15f..0.85f
+                                        )
+                                        Text("WALLPAPER BLUR  ${wallpaperBlur.toInt()} dp",
+                                            color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Slider(
+                                            value = wallpaperBlur,
+                                            onValueChange = {
+                                                wallpaperBlur = it
+                                                preferences.edit().putFloat("home_wallpaper_blur", it).apply()
+                                            },
+                                            valueRange = 0f..20f
+                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                                .clickable {
+                                                    wallpaperParallax = !wallpaperParallax
+                                                    preferences.edit().putBoolean("home_wallpaper_parallax", wallpaperParallax).apply()
+                                                }.padding(vertical = 10.dp, horizontal = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text("3D PARALLAX EFFECT", color = Color.White,
+                                                    fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                Text("Move your phone to create a subtle depth effect.",
+                                                    color = Color.LightGray, fontSize = 10.sp)
+                                            }
+                                            Text(if (wallpaperParallax) "ON" else "OFF",
+                                                color = if (wallpaperParallax) NeonCyan else Color.LightGray,
+                                                fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonViolet.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("HOME PAGE COUNT", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("$homePageCount pages", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(
+                                        value = homePageCount.toFloat(),
+                                        onValueChange = {
+                                            homePageCount = it.toInt().coerceIn(3, 7)
+                                            preferences.edit().putInt("home_page_count", homePageCount).apply()
+                                        },
+                                        valueRange = 3f..7f,
+                                        steps = 3
+                                    )
+                                    Text("Choose how many home pages are available for your shortcuts.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+             
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("PAGE TRANSITION", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Choose how your home pages move when you swipe.", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("Slide", "Depth", "Zoom", "Fade").forEach { effect ->
+                                            Button(
+                                                onClick = {
+                                                    homePageEffect = effect
+                                                    preferences.edit().putString("home_page_effect", effect).apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (homePageEffect == effect) NeonCyan else Color(0xFF273149)
+                                                )
+                                            ) {
+                                                Text(effect, color = if (homePageEffect == effect) SpaceBlack else Color.White, fontSize = 9.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+               }
+
+                            Text("WIDGET SPACE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("Show or hide widgets on your home screen.", color = Color.LightGray, fontSize = 11.sp)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            showWidgetShelf = !showWidgetShelf
+                                            preferences.edit().putBoolean("show_widget_shelf", showWidgetShelf).apply()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (showWidgetShelf) NeonCyan else SpacePanel)
+                                    ) {
+                                        Text(if (showWidgetShelf) "ON" else "OFF", color = if (showWidgetShelf) SpaceBlack else Color.White)
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("WIDGET SIZE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Width: ${widgetWidth.toInt()} dp", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(value = widgetWidth, onValueChange = {
+                                        widgetWidth = it
+                                        preferences.edit().putInt("widget_width", it.toInt()).apply()
+                                    }, valueRange = 200f..340f)
+                                    Text("Height: ${widgetHeight.toInt()} dp", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(value = widgetHeight, onValueChange = {
+                                        widgetHeight = it
+                                        preferences.edit().putInt("widget_height", it.toInt()).apply()
+                                    }, valueRange = 100f..220f)
+                                    Text("Adjust the size of cards in your Widget Space.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonPink.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("APP LABELS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("Show or hide names below app icons.", color = Color.LightGray, fontSize = 11.sp)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            showAppLabels = !showAppLabels
+                                            preferences.edit().putBoolean("show_app_labels", showAppLabels).apply()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (showAppLabels) NeonViolet else Color(0xFF273149)
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) { Text(if (showAppLabels) "ON" else "OFF", fontSize = 11.sp) }
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("HOME LABEL SIZE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("${homeLabelSize.toInt()} sp", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(
+                                        value = homeLabelSize,
+                                        onValueChange = {
+                                            homeLabelSize = it
+                                            preferences.edit().putInt("home_label_size", it.toInt()).apply()
+                                        },
+                                        valueRange = 8f..14f,
+                                        steps = 5
+                                    )
+                                    Text("Adjust app name text on the Home screen.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                    Text("HOME LABEL COLOR", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("White", "Cyan", "Gold", "Pink", "Violet").forEach { shade ->
+                                            Button(
+                                                onClick = {
+                                                    homeLabelColor = shade
+                                                    preferences.edit().putString("home_label_color", shade).apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (homeLabelColor == shade) NeonCyan else Color(0xFF273149)
+                                                )
+                                            ) {
+                                                Text(shade.take(1), color = when (shade) {
+                                                    "Cyan" -> Color.Cyan
+                                                    "Gold" -> Color(0xFFFFD166)
+                                                    "Pink" -> Color(0xFFFF75C3)
+                                                    "Violet" -> Color(0xFFB69CFF)
+                                                    else -> Color.White
+                                                }, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                    Text("Choose the color of app names on your Home screen.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                    Text("ICON SHADOW & GLOW", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                        Text("Neon glow", color = Color.LightGray, fontSize = 12.sp)
+                                        Button(
+                                            onClick = {
+                                                homeIconGlow = !homeIconGlow
+                                                preferences.edit().putBoolean("home_icon_glow", homeIconGlow).apply()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = if (homeIconGlow) NeonCyan else Color(0xFF273149))
+                                        ) { Text(if (homeIconGlow) "ON" else "OFF") }
+                                    }
+                                    Text("${homeIconShadow.toInt()}", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(
+                                        value = homeIconShadow,
+                                        onValueChange = {
+                                            homeIconShadow = it
+                                            preferences.edit().putInt("home_icon_shadow", it.toInt()).apply()
+                                        },
+                                        valueRange = 0f..20f,
+                                        steps = 19
+                                    )
+                                    Text("Add depth to Home screen icons.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
                             ) {
                                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -369,6 +1047,253 @@ private fun FusionHome(
                                             ) { Text("${count} columns", fontSize = 10.sp) }
                                         }
                                     }
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("APP SORTING", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Choose the order of apps in your drawer.", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                        listOf("Name", "Reverse", "Favorites first").forEach { option ->
+                                            Button(onClick = {
+                                                appSort = option
+                                                preferences.edit().putString("app_sort", option).apply()
+                                            }, colors = ButtonDefaults.buttonColors(containerColor = if (appSort == option) NeonViolet else Color(0xFF273149)), shape = RoundedCornerShape(12.dp)) {
+                                                Text(option, fontSize = 9.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonPink.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("CUSTOM APP FOLDERS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Choose an app, name a folder, then create it or add the app to an existing folder.", color = Color.LightGray, fontSize = 11.sp)
+                                    OutlinedTextField(value = folderNameInput, onValueChange = { folderNameInput = it.take(24).replace(";", "").replace("=", "") }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Folder name") })
+                                    Text("SELECT APP", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                        apps.forEach { app ->
+                                            Button(onClick = { folderAppPackage = app.packageName }, colors = ButtonDefaults.buttonColors(containerColor = if (folderAppPackage == app.packageName) NeonViolet else Color(0xFF273149)), shape = RoundedCornerShape(10.dp)) {
+                                                Text(app.label.take(13), fontSize = 9.sp, maxLines = 1)
+                                            }
+                                        }
+                                    }
+                                    Button(onClick = {
+                                        val name = folderNameInput.trim()
+                                        if (name.isNotEmpty() && folderAppPackage.isNotBlank()) {
+                                            val updated = customFolders.toMutableMap()
+                                            updated[name] = updated[name].orEmpty() + folderAppPackage
+                                            saveCustomFolders(updated)
+                                            selectedCategory = name
+                                            folderNameInput = ""
+                                        }
+                                    }, enabled = folderNameInput.isNotBlank() && folderAppPackage.isNotBlank(), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = NeonViolet), shape = RoundedCornerShape(12.dp)) {
+                                        Text("Create folder / Add selected app")
+                                    }
+                                    customFolders.forEach { (name, packages) ->
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Text("$name  •  ${packages.size} apps", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                                            Button(onClick = {
+                                                val updated = customFolders.toMutableMap()
+                                                updated.remove(name)
+                                                saveCustomFolders(updated)
+                                                if (selectedCategory == name) selectedCategory = "All"
+                                            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5A2948)), shape = RoundedCornerShape(10.dp)) { Text("Delete", fontSize = 9.sp) }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonPink.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text("APP DRAWER APPEARANCE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Personalize the floating universe.", color = Color.LightGray, fontSize = 11.sp)
+                                    Text("ICON PACK", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Text(activeIconPack?.label ?: "System icons", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(
+                                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                selectedIconPack = ""
+                                                preferences.edit().remove("icon_pack_package").apply()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = if (selectedIconPack.isBlank()) NeonViolet else Color(0xFF273149)),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) { Text("Default", fontSize = 10.sp) }
+                                        iconPacks.forEach { pack ->
+                                            Button(
+                                                onClick = {
+                                                    selectedIconPack = pack.packageName
+                                                    preferences.edit().putString("icon_pack_package", pack.packageName).apply()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = if (selectedIconPack == pack.packageName) NeonViolet else Color(0xFF273149)),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) { Text(pack.label.take(18), fontSize = 10.sp, maxLines = 1) }
+                                        }
+                                    }
+                                    if (iconPacks.isEmpty()) {
+                                        Text("No compatible icon packs found. Install an ADW or Nova-compatible icon pack first.", color = Color.LightGray, fontSize = 10.sp)
+                                    }
+                                    Text("ICON SHAPE", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("Circle", "Rounded", "Square").forEach { shape ->
+                                            Button(onClick = {
+                                                drawerIconShape = shape
+                                                preferences.edit().putString("drawer_icon_shape", shape).apply()
+                                            }, colors = ButtonDefaults.buttonColors(containerColor = if (drawerIconShape == shape) NeonViolet else Color(0xFF273149)), shape = RoundedCornerShape(12.dp)) {
+                                                Text(shape, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                    Text("BACKGROUND", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("Cosmic", "Midnight", "Aurora").forEach { style ->
+                                            Button(onClick = {
+                                                drawerBackground = style
+                                                preferences.edit().putString("drawer_background", style).apply()
+                                            }, colors = ButtonDefaults.buttonColors(containerColor = if (drawerBackground == style) NeonViolet else Color(0xFF273149)), shape = RoundedCornerShape(12.dp)) {
+                                                Text(style, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                    Text("ICON ANIMATION", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("Off", "Gentle", "Dynamic").forEach { style ->
+                                            Button(onClick = {
+                                                drawerAnimation = style
+                                                preferences.edit().putString("drawer_animation", style).apply()
+                                            }, colors = ButtonDefaults.buttonColors(containerColor = if (drawerAnimation == style) NeonViolet else Color(0xFF273149)), shape = RoundedCornerShape(12.dp)) {
+                                                Text(style, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                    Text("Gentle is recommended for smoother performance on older phones.", color = Color.LightGray, fontSize = 10.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text("CUSTOM DOCK", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Choose how many shortcuts appear at the bottom of Home.", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        (3..6).forEach { count ->
+                                            Button(
+                                                onClick = {
+                                                    dockCount = count
+                                                    preferences.edit().putInt("dock_count", count).apply()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (dockCount == count) NeonViolet else Color(0xFF273149)
+                                                ),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) { Text("$count", fontSize = 11.sp) }
+                                        }
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                dockVisible = !dockVisible
+                                                preferences.edit().putBoolean("dock_visible", dockVisible).apply()
+                                            }.padding(vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Show Home Dock", color = Color.White, fontSize = 12.sp)
+                                        Text(if (dockVisible) "ON" else "OFF",
+                                            color = if (dockVisible) NeonCyan else NeonPink,
+                                            fontWeight = FontWeight.Bold)
+                                    }
+                                    Text("DOCK TRANSPARENCY  ${(dockOpacity * 100).toInt()}%",
+                                        color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Slider(
+                                        value = dockOpacity,
+                                        onValueChange = {
+                                            dockOpacity = it
+                                            preferences.edit().putFloat("dock_opacity", it).apply()
+                                        },
+                                        valueRange = 0.35f..1f
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("HOME GESTURES", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Choose what a double tap on an empty area of Home does.", color = Color.LightGray, fontSize = 11.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("Apps", "Customize", "Home").forEach { action ->
+                                            Button(
+                                                onClick = {
+                                                    doubleTapAction = action
+                                                    preferences.edit().putString("gesture_double_tap", action).apply()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (doubleTapAction == action) NeonViolet else Color(0xFF273149)
+                                                ),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) { Text(action, fontSize = 10.sp) }
+                                        }
+                                    }
+                                    Text("Double-tap the Home workspace to run this action.", color = NeonCyan, fontSize = 10.sp)
+                                    Spacer(Modifier.height(6.dp))
+                                    Text("SWIPE UP", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("Apps", "Customize", "Home").forEach { action ->
+                                            Button(
+                                                onClick = {
+                                                    swipeUpAction = action
+                                                    preferences.edit().putString("gesture_swipe_up", action).apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 3.dp, vertical = 7.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = if (swipeUpAction == action) NeonCyan else Color(0xFF273149))
+                                            ) { Text(action, color = if (swipeUpAction == action) SpaceBlack else Color.White, fontSize = 9.sp) }
+                                        }
+                                    }
+                                    Text("SWIPE DOWN", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("Apps", "Customize", "Home").forEach { action ->
+                                            Button(
+                                                onClick = {
+                                                    swipeDownAction = action
+                                                    preferences.edit().putString("gesture_swipe_down", action).apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 3.dp, vertical = 7.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = if (swipeDownAction == action) NeonCyan else Color(0xFF273149))
+                                            ) { Text(action, color = if (swipeDownAction == action) SpaceBlack else Color.White, fontSize = 9.sp) }
+                                        }
+                                    }
+                                    Text("Swipe gestures work from the Home header area.", color = Color.LightGray, fontSize = 10.sp)
                                 }
                             }
 
@@ -430,6 +1355,9 @@ private fun FusionHome(
                                     iconSize = 76f
                                     gridColumns = 3
                                     floatingMotion = true
+                                    dockCount = 4
+                                    dockVisible = true
+                                    dockOpacity = 0.92f
                                     hiddenApps = emptySet()
                                     favorites = emptySet()
                                     preferences.edit().clear().apply()
@@ -602,19 +1530,29 @@ private fun HomeInfoCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FloatingAppIcon(
     app: LauncherApp,
     index: Int,
     iconSize: androidx.compose.ui.unit.Dp,
     floatingMotion: Boolean,
+    iconShape: String,
+    animationStyle: String,
+    iconPackPackage: String?,
+    iconPackIconId: Int?,
+    showLabel: Boolean,
     tiltX: Float,
     tiltY: Float,
     isFavorite: Boolean,
+    isHidden: Boolean,
     onToggleFavorite: () -> Unit,
+    onToggleHidden: () -> Unit,
+    onOpenAppInfo: () -> Unit,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    var showAppMenu by remember(app.packageName) { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale by animateFloatAsState(
@@ -635,9 +1573,14 @@ private fun FloatingAppIcon(
         ),
         label = "iconBob"
     )
-    val iconBitmap = remember(app.packageName) {
+    val iconBitmap = remember(app.packageName, iconPackPackage, iconPackIconId) {
         runCatching {
-            val drawable = context.packageManager.getApplicationIcon(app.packageName)
+            val drawable = if (iconPackPackage != null && iconPackIconId != null) {
+                val packResources = context.packageManager.getResourcesForApplication(iconPackPackage)
+                packResources.getDrawable(iconPackIconId, null)
+            } else {
+                context.packageManager.getApplicationIcon(app.packageName)
+            }
             val bitmap = Bitmap.createBitmap(144, 144, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             drawable.setBounds(0, 0, canvas.width, canvas.height)
@@ -657,6 +1600,16 @@ private fun FloatingAppIcon(
         else -> -3f
     } else 0f
     val lift = if (floatingMotion && index % 2 != 0) 9.dp else 0.dp
+    val shape = when (iconShape) {
+        "Rounded" -> RoundedCornerShape(22.dp)
+        "Square" -> RoundedCornerShape(8.dp)
+        else -> CircleShape
+    }
+    val animationAmount = when (animationStyle) {
+        "Off" -> 0f
+        "Dynamic" -> 9f
+        else -> 3f
+    }
 
     Column(
         modifier = Modifier
@@ -668,20 +1621,21 @@ private fun FloatingAppIcon(
         Box(
             modifier = Modifier
                 .size(iconSize)
-                .shadow(18.dp, CircleShape, ambientColor = accent.copy(alpha = 0.42f),
+                .shadow(18.dp, shape, ambientColor = accent.copy(alpha = 0.42f),
                     spotColor = accent.copy(alpha = 0.55f))
-                .clip(CircleShape)
+                .clip(shape)
                 .background(Brush.linearGradient(
                     listOf(accent.copy(alpha = 0.38f), Color(0xFF17243A), Color(0xFF0A1020))
                 ))
                 .border(1.dp, Brush.linearGradient(
                     listOf(Color.White.copy(alpha = 0.8f), accent.copy(alpha = 0.55f),
                         Color.White.copy(alpha = 0.12f))
-                ), CircleShape)
-                .clickable(
+                ), shape)
+                .combinedClickable(
                     interactionSource = interactionSource,
                     indication = null,
-                    onClick = onClick
+                    onClick = onClick,
+                    onLongClick = { showAppMenu = true }
                 )
                 .graphicsLayer {
                     val motion = if (floatingMotion) 1f else 0f
@@ -689,12 +1643,29 @@ private fun FloatingAppIcon(
                     rotationY = -tiltX * 1.4f * motion
                     scaleX = pressScale
                     scaleY = pressScale
-                    translationY = if (floatingMotion) sin(bobAmount * PI).toFloat() * 6f else 0f
+                    translationY = if (animationAmount > 0f) sin(bobAmount * PI).toFloat() * animationAmount else 0f
                     cameraDistance = 26f * density
                     transformOrigin = TransformOrigin.Center
                 },
             contentAlignment = Alignment.Center
         ) {
+            DropdownMenu(
+                expanded = showAppMenu,
+                onDismissRequest = { showAppMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(if (isFavorite) "Remove from favorites" else "Add to favorites") },
+                    onClick = { showAppMenu = false; onToggleFavorite() }
+                )
+                DropdownMenuItem(
+                    text = { Text(if (isHidden) "Show app" else "Hide app") },
+                    onClick = { showAppMenu = false; onToggleHidden() }
+                )
+                DropdownMenuItem(
+                    text = { Text("App info") },
+                    onClick = { showAppMenu = false; onOpenAppInfo() }
+                )
+            }
             Text(
                 if (isFavorite) "★" else "☆",
                 modifier = Modifier.align(Alignment.TopEnd).padding(5.dp)
@@ -717,8 +1688,10 @@ private fun FloatingAppIcon(
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(app.label, color = Color(0xFFECEBFA), fontSize = 11.sp,
-            maxLines = 1, fontWeight = FontWeight.Medium)
+        if (showLabel) {
+            Spacer(Modifier.height(8.dp))
+            Text(app.label, color = Color(0xFFECEBFA), fontSize = 11.sp,
+                maxLines = 1, fontWeight = FontWeight.Medium)
+        }
     }
 }
