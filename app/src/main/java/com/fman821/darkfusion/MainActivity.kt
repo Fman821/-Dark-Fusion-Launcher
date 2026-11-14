@@ -205,6 +205,7 @@ private fun FusionHome(
     var homeGridSpacing by remember { mutableStateOf(preferences.getInt("home_grid_spacing", 12).toFloat()) }
     var widgetWidth by remember { mutableStateOf(preferences.getInt("widget_width", 280).toFloat()) }
     var widgetHeight by remember { mutableStateOf(preferences.getInt("widget_height", 150).toFloat()) }
+    var showWidgetShelf by remember { mutableStateOf(preferences.getBoolean("show_widget_shelf", true)) }
     var gridColumns by remember { mutableStateOf(preferences.getInt("grid_columns", 3)) }
     var showAppLabels by remember { mutableStateOf(preferences.getBoolean("show_app_labels", true)) }
     var floatingMotion by remember { mutableStateOf(preferences.getBoolean("floating_motion", true)) }
@@ -425,7 +426,8 @@ private fun FusionHome(
                             homeIconSize = homeIconSize,
                             homeGridSpacing = homeGridSpacing,
                             widgetWidth = widgetWidth,
-                            widgetHeight = widgetHeight
+                            widgetHeight = widgetHeight,
+                            showWidgetShelf = showWidgetShelf
                         )
                     }
                     "Apps" -> {
@@ -595,6 +597,33 @@ private fun FusionHome(
                                         valueRange = 4f..20f
                                     )
                                     Text("Adjust the space between home screen app icons.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("WIDGET SPACE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("Show or hide widgets on your home screen.", color = Color.LightGray, fontSize = 11.sp)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            showWidgetShelf = !showWidgetShelf
+                                            preferences.edit().putBoolean("show_widget_shelf", showWidgetShelf).apply()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (showWidgetShelf) NeonCyan else SpacePanel)
+                                    ) {
+                                        Text(if (showWidgetShelf) "ON" else "OFF", color = if (showWidgetShelf) SpaceBlack else Color.White)
+                                    }
                                 }
                             }
 
