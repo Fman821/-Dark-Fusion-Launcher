@@ -235,6 +235,8 @@ private fun FusionHome(
     var dockVisible by remember { mutableStateOf(preferences.getBoolean("dock_visible", true)) }
     var dockOpacity by remember { mutableStateOf(preferences.getFloat("dock_opacity", 0.92f)) }
     var doubleTapAction by remember { mutableStateOf(preferences.getString("gesture_double_tap", "Apps") ?: "Apps") }
+    var swipeUpAction by remember { mutableStateOf(preferences.getString("gesture_swipe_up", "Apps") ?: "Apps") }
+    var swipeDownAction by remember { mutableStateOf(preferences.getString("gesture_swipe_down", "Customize") ?: "Customize") }
     var drawerIconShape by remember { mutableStateOf(preferences.getString("drawer_icon_shape", "Circle") ?: "Circle") }
     var drawerBackground by remember { mutableStateOf(preferences.getString("drawer_background", "Cosmic") ?: "Cosmic") }
     var drawerAnimation by remember { mutableStateOf(preferences.getString("drawer_animation", "Gentle") ?: "Gentle") }
@@ -476,8 +478,20 @@ private fun FusionHome(
                                     else -> selectedTab = "Apps"
                                 }
                             },
-                            onSwipeUpHome = { selectedTab = "Apps" },
-                            onSwipeDownHome = { selectedTab = "Customize" },
+                            onSwipeUpHome = {
+                                selectedTab = when (swipeUpAction) {
+                                    "Home" -> "Home"
+                                    "Customize" -> "Customize"
+                                    else -> "Apps"
+                                }
+                            },
+                            onSwipeDownHome = {
+                                selectedTab = when (swipeDownAction) {
+                                    "Home" -> "Home"
+                                    "Apps" -> "Apps"
+                                    else -> "Customize"
+                                }
+                            },
                             iconPackPackage = activeIconPack?.packageName,
                             iconPackIcons = activeIconPack?.appIcons.orEmpty(),
                             showAppLabels = showAppLabels,
@@ -1122,6 +1136,36 @@ private fun FusionHome(
                                         }
                                     }
                                     Text("Double-tap the Home workspace to run this action.", color = NeonCyan, fontSize = 10.sp)
+                                    Spacer(Modifier.height(6.dp))
+                                    Text("SWIPE UP", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("Apps", "Customize", "Home").forEach { action ->
+                                            Button(
+                                                onClick = {
+                                                    swipeUpAction = action
+                                                    preferences.edit().putString("gesture_swipe_up", action).apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 3.dp, vertical = 7.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = if (swipeUpAction == action) NeonCyan else Color(0xFF273149))
+                                            ) { Text(action, color = if (swipeUpAction == action) SpaceBlack else Color.White, fontSize = 9.sp) }
+                                        }
+                                    }
+                                    Text("SWIPE DOWN", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("Apps", "Customize", "Home").forEach { action ->
+                                            Button(
+                                                onClick = {
+                                                    swipeDownAction = action
+                                                    preferences.edit().putString("gesture_swipe_down", action).apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 3.dp, vertical = 7.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = if (swipeDownAction == action) NeonCyan else Color(0xFF273149))
+                                            ) { Text(action, color = if (swipeDownAction == action) SpaceBlack else Color.White, fontSize = 9.sp) }
+                                        }
+                                    }
+                                    Text("Swipe gestures work from the Home header area.", color = Color.LightGray, fontSize = 10.sp)
                                 }
                             }
 
