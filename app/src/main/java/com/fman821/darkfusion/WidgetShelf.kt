@@ -32,6 +32,7 @@ fun WidgetShelf(
     widgetIds: List<Int>,
     onAddWidget: () -> Unit,
     onRemoveWidget: (Int) -> Unit,
+    onMoveWidget: (Int, Int) -> Unit,
     widgetWidth: Float = 280f,
     widgetHeight: Float = 150f
 ) {
@@ -73,11 +74,23 @@ fun WidgetShelf(
                                     factory = { context -> host.createView(context, id, info) },
                                     modifier = Modifier.width(widgetWidth.coerceIn(200f, 340f).dp).height(widgetHeight.coerceIn(100f, 220f).dp)
                                 )
-                                Button(
-                                    onClick = { onRemoveWidget(id) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34213B)),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
-                                ) { Text("Remove widget", fontSize = 9.sp) }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Button(
+                                        onClick = { onMoveWidget(id, -1) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF273149)),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) { Text("←", fontSize = 12.sp) }
+                                    Button(
+                                        onClick = { onMoveWidget(id, 1) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF273149)),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) { Text("→", fontSize = 12.sp) }
+                                    Button(
+                                        onClick = { onRemoveWidget(id) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34213B)),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                                    ) { Text("Remove", fontSize = 9.sp) }
+                                }
                             }
                         }
                     }
