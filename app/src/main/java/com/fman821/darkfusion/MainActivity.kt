@@ -206,6 +206,7 @@ private fun FusionHome(
     val preferences = remember { context.getSharedPreferences("dark_fusion_settings", android.content.Context.MODE_PRIVATE) }
     var iconSize by remember { mutableStateOf(preferences.getInt("icon_size", 76).toFloat()) }
     var homeIconSize by remember { mutableStateOf(preferences.getInt("home_icon_size", 58).toFloat()) }
+    var homeIconShape by remember { mutableStateOf(preferences.getString("home_icon_shape", "Circle") ?: "Circle") }
     var homeGridSpacing by remember { mutableStateOf(preferences.getInt("home_grid_spacing", 12).toFloat()) }
     var homePageCount by remember { mutableStateOf(preferences.getInt("home_page_count", 3)) }
     var homePageEffect by remember { mutableStateOf(preferences.getString("home_page_effect", "Depth") ?: "Depth") }
@@ -497,6 +498,7 @@ private fun FusionHome(
                             showAppLabels = showAppLabels,
                             gridColumns = gridColumns,
                             homeIconSize = homeIconSize,
+                            homeIconShape = homeIconShape,
                             homeGridSpacing = homeGridSpacing,
                             widgetWidth = widgetWidth,
                             widgetHeight = widgetHeight,
@@ -651,6 +653,35 @@ private fun FusionHome(
                                         valueRange = 44f..76f
                                     )
                                     Text("Change shortcut icon size on your home pages. This setting is separate from the app drawer.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("HOME ICON SHAPE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                        listOf("Circle", "Rounded", "Square").forEach { shape ->
+                                            Button(
+                                                onClick = {
+                                                    homeIconShape = shape
+                                                    preferences.edit().putString("home_icon_shape", shape).apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (homeIconShape == shape) NeonCyan else Color(0xFF273149)
+                                                )
+                                            ) {
+                                                Text(shape, color = if (homeIconShape == shape) SpaceBlack else Color.White, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                    Text("Choose the shape behind your home screen app icons.", color = Color.LightGray, fontSize = 11.sp)
                                 }
                             }
 
