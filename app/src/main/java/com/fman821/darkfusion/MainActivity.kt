@@ -232,6 +232,7 @@ private fun FusionHome(
     var gridColumns by remember { mutableStateOf(preferences.getInt("grid_columns", 3)) }
     var showAppLabels by remember { mutableStateOf(preferences.getBoolean("show_app_labels", true)) }
     var homeLabelSize by remember { mutableStateOf(preferences.getInt("home_label_size", 10).toFloat()) }
+    var homeLabelColor by remember { mutableStateOf(preferences.getString("home_label_color", "White") ?: "White") }
     var floatingMotion by remember { mutableStateOf(preferences.getBoolean("floating_motion", true)) }
     var dockCount by remember { mutableStateOf(preferences.getInt("dock_count", 4)) }
     var dockVisible by remember { mutableStateOf(preferences.getBoolean("dock_visible", true)) }
@@ -498,6 +499,7 @@ private fun FusionHome(
                             iconPackIcons = activeIconPack?.appIcons.orEmpty(),
                             showAppLabels = showAppLabels,
                             homeLabelSize = homeLabelSize,
+                            homeLabelColor = homeLabelColor,
                             gridColumns = gridColumns,
                             homeIconSize = homeIconSize,
                             homeIconShape = homeIconShape,
@@ -948,6 +950,41 @@ private fun FusionHome(
                                         steps = 5
                                     )
                                     Text("Adjust app name text on the Home screen.", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                    Text("HOME LABEL COLOR", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("White", "Cyan", "Gold", "Pink", "Violet").forEach { shade ->
+                                            Button(
+                                                onClick = {
+                                                    homeLabelColor = shade
+                                                    preferences.edit().putString("home_label_color", shade).apply()
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (homeLabelColor == shade) NeonCyan else Color(0xFF273149)
+                                                )
+                                            ) {
+                                                Text(shade.take(1), color = when (shade) {
+                                                    "Cyan" -> Color.Cyan
+                                                    "Gold" -> Color(0xFFFFD166)
+                                                    "Pink" -> Color(0xFFFF75C3)
+                                                    "Violet" -> Color(0xFFB69CFF)
+                                                    else -> Color.White
+                                                }, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                    Text("Choose the color of app names on your Home screen.", color = Color.LightGray, fontSize = 11.sp)
                                 }
                             }
 
