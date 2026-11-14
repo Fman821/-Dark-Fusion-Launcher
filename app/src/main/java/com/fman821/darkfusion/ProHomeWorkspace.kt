@@ -31,6 +31,13 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -115,6 +122,25 @@ fun ProHomeWorkspace(
             preferences.edit().putString("home_app_order",
                 updated.joinToString("|") { it.packageName }).apply()
         }
+    }
+    var homeFolders by remember {
+        val raw = preferences.getString("home_app_folders", "").orEmpty()
+        val parsed = raw.split(";").filter { it.contains("=") }.associate { entry ->
+            val parts = entry.split("=", limit = 2)
+            parts[0] to parts[1].split(",").filter { it.isNotBlank() }
+        }
+        mutableStateOf(parsed)
+    }
+    var showFolderEditor by remember { mutableStateOf(false) }
+    var folderName by remember { mutableStateOf("") }
+    var selectedFolderApps by remember { mutableStateOf(setOf<String>()) }
+    var openedFolder by remember { mutableStateOf<String?>(null) }
+    fun saveHomeFolders(updated: Map<String, List<String>>) {
+        homeFolders = updated
+        val encoded = updated.entries.joinToString(";") { (name, packages) ->
+            "$name=${packages.joinToString(",")}"
+        }
+        preferences.edit().putString("home_app_folders", encoded).apply()
     }
     val pagerState = rememberPagerState(pageCount = { pageCount })
     val dockApps = (favoriteApps + apps.filterNot { app ->
@@ -220,6 +246,22 @@ fun ProHomeWorkspace(
                         WorkspaceQuickTile("CALENDAR", "Open calendar", WorkspacePink, onOpenCalendar,
                             Modifier.weight(1f))
                     }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        WorkspaceBottomAction("＋ NEW FOLDER", {
+                            folderName = ""
+                            selectedFolderApps = emptySet()
+                            showFolderEditor = true
+                        }, Modifier.weight(1f))
+                        homeFolders.keys.forEach { name ->
+                            WorkspaceBottomAction("▣ $name", { openedFolder = name },
+                                Modifier.weight(1f))
+                        }
+                    }
                     Spacer(Modifier.height(10.dp))
                     if (showWidgetShelf) {
                         WidgetShelf(
@@ -309,6 +351,84 @@ fun ProHomeWorkspace(
             WorkspaceBottomAction("SETTINGS", onOpenSettings, Modifier.weight(1f))
             WorkspaceBottomAction("SET HOME", onChooseHome, Modifier.weight(1f))
         }
+    }
+
+    if (showFolderEditor) {
+        AlertDialog(
+            onDismissRequest = { showFolderEditor = false },
+            title = { Text("Create home folder", color = Color.White) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = folderName,
+                        onValueChange = { folderName = it.take(20).filter { ch -> ch != ';' && ch != '=' } },
+                        label = { Text("Folder name") },
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text("Choose apps", color = WorkspaceCyan, fontSize = 12.sp)
+                    LazyColumn(Modifier.height(220.dp)) {
+                        items(orderedApps, key = { it.packageName }) { app ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = selectedFolderApps.contains(app.packageName),
+                                    onCheckedChange = { checked ->
+                                        selectedFolderApps = if (checked)
+                                            selectedFolderApps + app.packageName
+                                        else selectedFolderApps - app.packageName
+                                    }
+                                )
+                                Text(app.label, color = Color.White, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val name = folderName.trim()
+                    if (name.isNotEmpty() && selectedFolderApps.isNotEmpty()) {
+                        saveHomeFolders(homeFolders + (name to selectedFolderApps.toList()))
+                        showFolderEditor = false
+                    }
+                }) { Text("SAVE") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFolderEditor = false }) { Text("CANCEL") }
+            },
+            containerColor = WorkspacePanel
+        )
+    }
+
+    openedFolder?.let { name ->
+        val folderApps = homeFolders[name].orEmpty().mapNotNull { pkg ->
+            orderedApps.firstOrNull { it.packageName == pkg }
+        }
+        AlertDialog(
+            onDismissRequest = { openedFolder = null },
+            title = { Text(name, color = Color.White) },
+            text = {
+                Column {
+                    folderApps.forEach { app ->
+                        TextButton(onClick = {
+                            openedFolder = null
+                            onLaunchApp(app.packageName)
+                        }) { Text(app.label, color = WorkspaceCyan) }
+                    }
+                    if (folderApps.isEmpty()) Text("No apps in this folder", color = Color.LightGray)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    saveHomeFolders(homeFolders - name)
+                    openedFolder = null
+                }) { Text("DELETE FOLDER") }
+            },
+            dismissButton = {
+                TextButton(onClick = { openedFolder = null }) { Text("CLOSE") }
+            },
+            containerColor = WorkspacePanel
+        )
     }
 }
 
