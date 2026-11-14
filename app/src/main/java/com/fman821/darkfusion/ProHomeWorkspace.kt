@@ -95,6 +95,8 @@ fun ProHomeWorkspace(
     homeIconShape: String = "Circle",
     homeLabelSize: Float = 10f,
     homeLabelColor: String = "White",
+    homeIconGlow: Boolean = true,
+    homeIconShadow: Float = 10f,
     homeGridSpacing: Float = 12f,
     widgetWidth: Float = 280f,
     widgetHeight: Float = 150f,
@@ -324,7 +326,7 @@ fun ProHomeWorkspace(
                     Text("YOUR SHORTCUTS", color = WorkspaceCyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(Modifier.height(8.dp))
-                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize, homeGridSpacing, homeIconShape, homeLabelSize, homeLabelColor)
+                    WorkspaceAppGrid(pageApps.ifEmpty { orderedApps.take(12) }, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize, homeGridSpacing, homeIconShape, homeLabelSize, homeLabelColor, homeIconGlow, homeIconShadow)
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
@@ -574,7 +576,9 @@ private fun WorkspaceAppGrid(
     homeGridSpacing: Float,
     homeIconShape: String,
     homeLabelSize: Float,
-    homeLabelColor: String
+    homeLabelColor: String,
+    homeIconGlow: Boolean,
+    homeIconShadow: Float
 ) {
     val gridState = rememberLazyGridState()
     var draggingPackage by remember { mutableStateOf<String?>(null) }
@@ -654,7 +658,14 @@ private fun WorkspaceAppGrid(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
-                    modifier = Modifier.size(homeIconSize.coerceIn(44f, 76f).dp).clip(iconShape)
+                    modifier = Modifier.size(homeIconSize.coerceIn(44f, 76f).dp)
+                        .shadow(
+                            elevation = (homeIconShadow.coerceIn(0f, 20f) + if (homeIconGlow) 5f else 0f).dp,
+                            shape = iconShape,
+                            ambientColor = if (homeIconGlow) workspaceLabelColor(homeLabelColor).copy(alpha = 0.75f) else Color.Black,
+                            spotColor = if (homeIconGlow) workspaceLabelColor(homeLabelColor).copy(alpha = 0.9f) else Color.Black
+                        )
+                        .clip(iconShape)
                         .background(Brush.linearGradient(listOf(
                             WorkspaceViolet.copy(alpha = 0.55f),
                             Color(0xFF17243A), Color(0xFF0A1020)
@@ -671,7 +682,7 @@ private fun WorkspaceAppGrid(
                 }
                 if (showAppLabels) {
                     Spacer(Modifier.height(5.dp))
-                    Text(app.label, color = Color(0xFFECEBFA), fontSize = 10.sp,
+                    Text(app.label, color = workspaceLabelColor(homeLabelColor), fontSize = homeLabelSize.coerceIn(8f, 14f).sp,
                         maxLines = 1)
                 }
                 if (isDragging) {
