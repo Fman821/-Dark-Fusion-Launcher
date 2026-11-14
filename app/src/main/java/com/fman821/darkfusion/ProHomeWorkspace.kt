@@ -96,7 +96,8 @@ fun ProHomeWorkspace(
     widgetWidth: Float = 280f,
     widgetHeight: Float = 150f,
     showWidgetShelf: Boolean = true,
-    homePageCount: Int = 3
+    homePageCount: Int = 3,
+    homePageEffect: String = "Depth"
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -252,7 +253,28 @@ fun ProHomeWorkspace(
             modifier = Modifier.weight(1f),
             key = { page -> page }
         ) { page ->
+            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+                .coerceIn(-1f, 1f)
+            val distance = kotlin.math.abs(pageOffset)
+            val transitionModifier = Modifier.graphicsLayer {
+                when (homePageEffect) {
+                    "Slide" -> translationX = -pageOffset * size.width * 0.08f
+                    "Zoom" -> {
+                        scaleX = 1f - (distance * 0.18f)
+                        scaleY = 1f - (distance * 0.18f)
+                    }
+                    "Fade" -> alpha = 1f - (distance * 0.72f)
+                    else -> {
+                        scaleX = 1f - (distance * 0.12f)
+                        scaleY = 1f - (distance * 0.12f)
+                        alpha = 1f - (distance * 0.25f)
+                        rotationY = pageOffset * 18f
+                        cameraDistance = 24f * density
+                    }
+                }
+            }
             val pageApps = pages.getOrNull(page).orEmpty()
+            Box(transitionModifier.fillMaxSize()) {
             if (page == 0) {
                 Column(Modifier.fillMaxSize()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -317,6 +339,7 @@ fun ProHomeWorkspace(
                         WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize, homeGridSpacing)
                     }
                 }
+            }
             }
         }
 
