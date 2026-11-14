@@ -231,6 +231,7 @@ private fun FusionHome(
     var showWidgetShelf by remember { mutableStateOf(preferences.getBoolean("show_widget_shelf", true)) }
     var gridColumns by remember { mutableStateOf(preferences.getInt("grid_columns", 3)) }
     var showAppLabels by remember { mutableStateOf(preferences.getBoolean("show_app_labels", true)) }
+    var homeLabelSize by remember { mutableStateOf(preferences.getInt("home_label_size", 10).toFloat()) }
     var floatingMotion by remember { mutableStateOf(preferences.getBoolean("floating_motion", true)) }
     var dockCount by remember { mutableStateOf(preferences.getInt("dock_count", 4)) }
     var dockVisible by remember { mutableStateOf(preferences.getBoolean("dock_visible", true)) }
@@ -496,6 +497,7 @@ private fun FusionHome(
                             iconPackPackage = activeIconPack?.packageName,
                             iconPackIcons = activeIconPack?.appIcons.orEmpty(),
                             showAppLabels = showAppLabels,
+                            homeLabelSize = homeLabelSize,
                             gridColumns = gridColumns,
                             homeIconSize = homeIconSize,
                             homeIconShape = homeIconShape,
@@ -924,6 +926,28 @@ private fun FusionHome(
                                         ),
                                         shape = RoundedCornerShape(12.dp)
                                     ) { Text(if (showAppLabels) "ON" else "OFF", fontSize = 11.sp) }
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = SpacePanel,
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.35f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("HOME LABEL SIZE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("${homeLabelSize.toInt()} sp", color = NeonCyan, fontSize = 12.sp)
+                                    Slider(
+                                        value = homeLabelSize,
+                                        onValueChange = {
+                                            homeLabelSize = it
+                                            preferences.edit().putInt("home_label_size", it.toInt()).apply()
+                                        },
+                                        valueRange = 8f..14f,
+                                        steps = 5
+                                    )
+                                    Text("Adjust app name text on the Home screen.", color = Color.LightGray, fontSize = 11.sp)
                                 }
                             }
 
