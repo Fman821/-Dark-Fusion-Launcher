@@ -339,7 +339,7 @@ fun ProHomeWorkspace(
                             Text("Your next home page is ready.", color = Color.LightGray, fontSize = 12.sp)
                         }
                     } else {
-                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize, homeGridSpacing, homeIconShape, homeLabelSize)
+                        WorkspaceAppGrid(pageApps, onLaunchApp, ::moveHomeApp, iconPackPackage, iconPackIcons, showAppLabels, gridColumns, homeIconSize, homeGridSpacing, homeIconShape, homeLabelSize, homeLabelColor)
                     }
                 }
             }
@@ -553,7 +553,6 @@ fun ProHomeWorkspace(
     }
 }
 
-@Composable
 private fun workspaceLabelColor(name: String): Color = when (name) {
     "Cyan" -> Color(0xFF63E6FF)
     "Gold" -> Color(0xFFFFD166)
@@ -562,6 +561,7 @@ private fun workspaceLabelColor(name: String): Color = when (name) {
     else -> Color.White
 }
 
+@Composable
 private fun WorkspaceAppGrid(
     apps: List<LauncherApp>,
     onLaunchApp: (String) -> Unit,
