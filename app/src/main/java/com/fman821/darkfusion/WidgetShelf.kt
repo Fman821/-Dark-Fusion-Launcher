@@ -31,7 +31,9 @@ fun WidgetShelf(
     manager: AppWidgetManager,
     widgetIds: List<Int>,
     onAddWidget: () -> Unit,
-    onRemoveWidget: (Int) -> Unit
+    onRemoveWidget: (Int) -> Unit,
+    widgetWidth: Float = 280f,
+    widgetHeight: Float = 150f
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -69,7 +71,7 @@ fun WidgetShelf(
                             ) {
                                 AndroidView(
                                     factory = { context -> host.createView(context, id, info) },
-                                    modifier = Modifier.width(280.dp).height(150.dp)
+                                    modifier = Modifier.width(widgetWidth.coerceIn(200f, 340f).dp).height(widgetHeight.coerceIn(100f, 220f).dp)
                                 )
                                 Button(
                                     onClick = { onRemoveWidget(id) },
