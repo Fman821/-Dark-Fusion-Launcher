@@ -283,6 +283,16 @@ private fun FusionHome(
         preferences.edit().putString("home_widget_ids", homeWidgetIds.joinToString(",")).apply()
         appWidgetHost.deleteAppWidgetId(id)
     }
+    fun moveHomeWidget(id: Int, direction: Int) {
+        val current = homeWidgetIds.indexOf(id)
+        val target = current + direction
+        if (current < 0 || target !in homeWidgetIds.indices) return
+        val reordered = homeWidgetIds.toMutableList()
+        val item = reordered.removeAt(current)
+        reordered.add(target, item)
+        homeWidgetIds = reordered
+        preferences.edit().putString("home_widget_ids", reordered.joinToString(",")).apply()
+    }
     var favorites by remember {
         mutableStateOf(preferences.getStringSet("favorite_apps", emptySet())?.toSet() ?: emptySet())
     }
@@ -398,6 +408,7 @@ private fun FusionHome(
                             widgetIds = homeWidgetIds,
                             onAddWidget = ::openWidgetPicker,
                             onRemoveWidget = ::removeHomeWidget,
+                            onMoveWidget = ::moveHomeWidget,
                             onDoubleTapHome = {
                                 when (doubleTapAction) {
                                     "Customize" -> selectedTab = "Customize"
