@@ -135,6 +135,21 @@ fun ProHomeWorkspace(
     var folderName by remember { mutableStateOf("") }
     var selectedFolderApps by remember { mutableStateOf(setOf<String>()) }
     var openedFolder by remember { mutableStateOf<String?>(null) }
+    fun readFolderSetting(key: String): Map<String, String> =
+        preferences.getString(key, "").orEmpty().split(";").filter { it.contains("=") }
+            .associate { entry -> entry.substringBefore("=") to entry.substringAfter("=") }
+    var folderColors by remember { mutableStateOf(readFolderSetting("home_folder_colors")) }
+    var folderShapes by remember { mutableStateOf(readFolderSetting("home_folder_shapes")) }
+    var folderLayouts by remember { mutableStateOf(readFolderSetting("home_folder_layouts")) }
+    fun saveFolderSetting(key: String, values: Map<String, String>) {
+        preferences.edit().putString(key, values.entries.joinToString(";") { "${it.key}=${it.value}" }).apply()
+    }
+    fun folderAccent(name: String): Color = when (folderColors[name]) {
+        "cyan" -> WorkspaceCyan
+        "pink" -> WorkspacePink
+        "gold" -> Color(0xFFFFC857)
+        else -> WorkspaceViolet
+    }
     fun saveHomeFolders(updated: Map<String, List<String>>) {
         homeFolders = updated
         val encoded = updated.entries.joinToString(";") { (name, packages) ->
@@ -258,8 +273,13 @@ fun ProHomeWorkspace(
                             showFolderEditor = true
                         }, Modifier.weight(1f))
                         homeFolders.keys.forEach { name ->
-                            WorkspaceBottomAction("▣ $name", { openedFolder = name },
-                                Modifier.weight(1f))
+                            WorkspaceFolderAction(
+                                name = name,
+                                accent = folderAccent(name),
+                                square = folderShapes[name] == "square",
+                                onClick = { openedFolder = name },
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
                     Spacer(Modifier.height(10.dp))
@@ -409,11 +429,86 @@ fun ProHomeWorkspace(
             title = { Text(name, color = Color.White) },
             text = {
                 Column {
-                    folderApps.forEach { app ->
+                    Text("FOLDER COLOR", color = WorkspaceCyan, fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("violet", "cyan", "pink", "gold").forEach { colorKey ->
+                            val color = when (colorKey) {
+                                "cyan" -> WorkspaceCyan
+                                "pink" -> WorkspacePink
+                                "gold" -> Color(0xFFFFC857)
+                                else -> WorkspaceViolet
+                            }
+                            Box(
+                                Modifier.size(30.dp).clip(CircleShape).background(color)
+                                    .border(if (folderColors[name] == colorKey ||
+                                        (folderColors[name] == null && colorKey == "violet")) 3.dp else 1.dp,
+                                        Color.White, CircleShape)
+                                    .clickable {
+                                        folderColors = folderColors + (name to colorKey)
+                                        saveFolderSetting("home_folder_colors", folderColors)
+                                    }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text("FOLDER SHAPE", color = WorkspaceCyan, fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = {
-                            openedFolder = null
-                            onLaunchApp(app.packageName)
-                        }) { Text(app.label, color = WorkspaceCyan) }
+                            folderShapes = folderShapes + (name to "round")
+                            saveFolderSetting("home_folder_shapes", folderShapes)
+                        }) { Text("Rounded", color = if (folderShapes[name] != "square") WorkspaceCyan else Color.White) }
+                        TextButton(onClick = {
+                            folderShapes = folderShapes + (name to "square")
+                            saveFolderSetting("home_folder_shapes", folderShapes)
+                        }) { Text("Square", color = if (folderShapes[name] == "square") WorkspaceCyan else Color.White) }
+                    }
+                    Text("ICON LAYOUT", color = WorkspaceCyan, fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = {
+                            folderLayouts = folderLayouts + (name to "grid")
+                            saveFolderSetting("home_folder_layouts", folderLayouts)
+                        }) { Text("Grid", color = if (folderLayouts[name] != "list") WorkspaceCyan else Color.White) }
+                        TextButton(onClick = {
+                            folderLayouts = folderLayouts + (name to "list")
+                            saveFolderSetting("home_folder_layouts", folderLayouts)
+                        }) { Text("List", color = if (folderLayouts[name] == "list") WorkspaceCyan else Color.White) }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    if (folderLayouts[name] == "list") {
+                        LazyColumn(Modifier.height(180.dp)) {
+                            items(folderApps, key = { it.packageName }) { app ->
+                                TextButton(onClick = {
+                                    openedFolder = null
+                                    onLaunchApp(app.packageName)
+                                }) { Text(app.label, color = Color.White) }
+                            }
+                        }
+                    } else {
+                        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            modifier = Modifier.height(180.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(folderApps, key = { it.packageName }) { app ->
+                                Column(
+                                    Modifier.clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            openedFolder = null
+                                            onLaunchApp(app.packageName)
+                                        }.padding(5.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    WorkspaceIconImage(app.packageName, iconPackPackage,
+                                        iconPackIcons[app.packageName], 34)
+                                    Text(app.label, color = Color.White, fontSize = 9.sp,
+                                        maxLines = 1)
+                                }
+                            }
+                        }
                     }
                     if (folderApps.isEmpty()) Text("No apps in this folder", color = Color.LightGray)
                 }
@@ -594,6 +689,27 @@ private fun WorkspaceQuickTile(
         Column(Modifier.padding(12.dp)) {
             Text(title, color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             Text(subtitle, color = Color.White, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceFolderAction(
+    name: String,
+    accent: Color,
+    square: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        color = accent.copy(alpha = 0.16f),
+        shape = if (square) RoundedCornerShape(7.dp) else RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.65f))
+    ) {
+        Box(Modifier.padding(vertical = 9.dp, horizontal = 5.dp), contentAlignment = Alignment.Center) {
+            Text("▣ $name", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1)
         }
     }
 }
