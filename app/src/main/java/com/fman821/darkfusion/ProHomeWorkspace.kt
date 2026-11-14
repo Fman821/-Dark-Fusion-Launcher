@@ -88,7 +88,8 @@ fun ProHomeWorkspace(
     homeGridSpacing: Float = 12f,
     widgetWidth: Float = 280f,
     widgetHeight: Float = 150f,
-    showWidgetShelf: Boolean = true
+    showWidgetShelf: Boolean = true,
+    homePageCount: Int = 3
 ) {
     val context = LocalContext.current
     val preferences = remember {
@@ -102,7 +103,7 @@ fun ProHomeWorkspace(
         mutableStateOf(restored + apps.filterNot { saved.contains(it.packageName) })
     }
     val pages = remember(orderedApps) { orderedApps.chunked(12) }
-    val pageCount = maxOf(3, pages.size)
+    val pageCount = maxOf(homePageCount.coerceIn(3, 7), pages.size)
     fun moveHomeApp(fromPackage: String, toPackage: String) {
         val updated = orderedApps.toMutableList()
         val from = updated.indexOfFirst { it.packageName == fromPackage }
